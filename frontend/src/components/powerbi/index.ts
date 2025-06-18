@@ -1,0 +1,1 @@
+export { PowerBIEmbed, PowerBIDemo } from './PowerBIEmbed';
