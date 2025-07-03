@@ -5,8 +5,9 @@ WORKDIR /app
 # Instalar dependencias del sistema necesarias
 RUN apt-get update && apt-get install -y \
     gcc \
-    default-libmysqlclient-dev \
+    build-essential \
     pkg-config \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Actualizar pip y setuptools
