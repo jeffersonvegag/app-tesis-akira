@@ -1386,6 +1386,279 @@ def test_turso_insert_fixed():
             "message": f"Error: {str(e)}"
         }
 
+@app.post("/api/v1/generar_cursos-capacitaciones", tags=["System"], summary="Generar tecnologías y capacitaciones masivamente")
+def generate_technologies_and_trainings(db: Session = Depends(get_db)):
+    """
+    Generar las 40 tecnologías y 15 capacitaciones de forma masiva.
+    Este endpoint crea todas las tecnologías y capacitaciones con sus relaciones.
+    """
+    try:
+        # 50 Tecnologías (actualizada)
+        technologies_data = [
+            "Rust", "Go (Golang)", "Python", "JavaScript", "TypeScript", "PHP", "Ruby", "Java", "Kotlin", "Elixir",
+            "Swift", "C#", "Django", "Flask", "FastAPI", "Node.js", "Express.js", "NestJS", "Spring Boot",
+            "Ruby on Rails", "Laravel", "Phoenix", "Actix-Web", "Gin", "Fiber", "PostgreSQL", "MySQL", "MariaDB",
+            "MongoDB", "Redis", "SQLite", "Cassandra", "Firebase", "React", "Vue.js", "Angular", "Svelte",
+            "Next.js", "Nuxt.js", "Astro", "Docker", "Kubernetes", "Terraform", "AWS", "Google Cloud Platform",
+            "Azure", "Jenkins", "GitHub Actions", "Ansible", "Jest", "Git", "JWT", "OWASP", "Cypress", "Selenium"
+        ]
+        
+        # 15 Capacitaciones con sus tecnologías asociadas
+        trainings_data = [
+            {
+                "name": "Control de Versiones & CI/CD",
+                "description": "Manejo profesional de código con Git y automatización",
+                "technologies": ["Git", "GitHub Actions", "Jenkins"]
+            },
+            {
+                "name": "Bases de Datos SQL Avanzadas",
+                "description": "Administración y optimización de bases de datos relacionales",
+                "technologies": ["PostgreSQL", "MySQL", "MariaDB", "SQLite"]
+            },
+            {
+                "name": "Backend con JavaScript/TypeScript",
+                "description": "Desarrollo backend moderno con Node.js",
+                "technologies": ["Node.js", "Express.js", "NestJS", "TypeScript", "JavaScript"]
+            },
+            {
+                "name": "Python Backend Completo",
+                "description": "Desarrollo backend con Python y frameworks modernos",
+                "technologies": ["Django", "FastAPI", "Flask", "Python", "PostgreSQL"]
+            },
+            {
+                "name": "Rust & Go para Backend",
+                "description": "Desarrollo de alta performance con Rust y Go",
+                "technologies": ["Rust", "Actix-Web", "Go (Golang)", "Gin", "Fiber"]
+            },
+            {
+                "name": "Bases de Datos NoSQL",
+                "description": "Modelado y gestión de datos no relacionales",
+                "technologies": ["MongoDB", "Redis", "Cassandra", "Firebase"]
+            },
+            {
+                "name": "DevOps & Cloud",
+                "description": "Infraestructura como código y despliegue en la nube",
+                "technologies": ["Docker", "Kubernetes", "AWS", "Terraform", "Ansible"]
+            },
+            {
+                "name": "Frontend Moderno",
+                "description": "Desarrollo frontend con las últimas tecnologías",
+                "technologies": ["React", "Next.js", "TypeScript", "JavaScript"]
+            },
+            {
+                "name": "PHP & Laravel",
+                "description": "Desarrollo web con PHP y el framework Laravel",
+                "technologies": ["PHP", "Laravel", "MySQL"]
+            },
+            {
+                "name": "Microservicios con Go",
+                "description": "Arquitectura de microservicios escalable",
+                "technologies": ["Go (Golang)", "Gin", "Docker", "Kubernetes"]
+            },
+            {
+                "name": "Testing & QA Automatizado",
+                "description": "Pruebas automatizadas y aseguramiento de calidad",
+                "technologies": ["Jest", "Cypress", "Selenium", "GitHub Actions", "Docker"]
+            },
+            {
+                "name": "Seguridad Web",
+                "description": "Implementación de seguridad en aplicaciones web",
+                "technologies": ["OWASP", "JWT", "Node.js", "Python"]
+            },
+            {
+                "name": "Serverless & Cloud Functions",
+                "description": "Desarrollo sin servidor en la nube",
+                "technologies": ["AWS", "Azure", "Google Cloud Platform", "JavaScript"]
+            },
+            {
+                "name": "GraphQL Moderno",
+                "description": "APIs modernas con GraphQL",
+                "technologies": ["Node.js", "MongoDB", "TypeScript"]
+            },
+            {
+                "name": "Elixir & Phoenix",
+                "description": "Desarrollo funcional escalable con Elixir",
+                "technologies": ["Elixir", "Phoenix", "PostgreSQL"]
+            }
+        ]
+        
+        results = {"technologies": [], "trainings": [], "relations": []}
+        
+        # Insertar tecnologías
+        tech_id_map = {}
+        for tech_name in technologies_data:
+            # Verificar si ya existe
+            existing_tech = db.query(models.Technology).filter(models.Technology.technology_name == tech_name).first()
+            if not existing_tech:
+                new_tech = models.Technology(technology_name=tech_name)
+                db.add(new_tech)
+                db.commit()
+                db.refresh(new_tech)
+                tech_id_map[tech_name] = new_tech.technology_id
+                results["technologies"].append(f"Creada: {tech_name}")
+            else:
+                tech_id_map[tech_name] = existing_tech.technology_id
+                results["technologies"].append(f"Ya existe: {tech_name}")
+        
+        # Insertar capacitaciones y relaciones
+        for training_data in trainings_data:
+            # Verificar si ya existe la capacitación
+            existing_training = db.query(models.Training).filter(models.Training.training_name == training_data["name"]).first()
+            if not existing_training:
+                new_training = models.Training(
+                    training_name=training_data["name"],
+                    training_description=training_data["description"]
+                )
+                db.add(new_training)
+                db.commit()
+                db.refresh(new_training)
+                training_id = new_training.training_id
+                results["trainings"].append(f"Creada: {training_data['name']}")
+            else:
+                training_id = existing_training.training_id
+                results["trainings"].append(f"Ya existe: {training_data['name']}")
+            
+            # Crear relaciones con tecnologías
+            for tech_name in training_data["technologies"]:
+                if tech_name in tech_id_map:
+                    # Verificar si la relación ya existe
+                    existing_relation = db.query(models.TrainingTechnology).filter(
+                        models.TrainingTechnology.training_id == training_id,
+                        models.TrainingTechnology.technology_id == tech_id_map[tech_name]
+                    ).first()
+                    
+                    if not existing_relation:
+                        new_relation = models.TrainingTechnology(
+                            training_id=training_id,
+                            technology_id=tech_id_map[tech_name]
+                        )
+                        db.add(new_relation)
+                        results["relations"].append(f"Relacionado: {training_data['name']} -> {tech_name}")
+                    else:
+                        results["relations"].append(f"Ya existe relación: {training_data['name']} -> {tech_name}")
+        
+        db.commit()
+        
+        # Sincronizar con Turso
+        try:
+            # Crear tablas de capacitaciones en Turso si no existen
+            create_training_table = execute_turso_query("""
+                CREATE TABLE IF NOT EXISTS acd_m_training (
+                    training_id INTEGER PRIMARY KEY,
+                    training_name TEXT NOT NULL,
+                    training_description TEXT,
+                    training_status TEXT DEFAULT 'A',
+                    training_created_at TEXT
+                )
+            """)
+            
+            create_training_tech_table = execute_turso_query("""
+                CREATE TABLE IF NOT EXISTS acd_t_training_technology (
+                    training_technology_id INTEGER PRIMARY KEY,
+                    training_id INTEGER NOT NULL,
+                    technology_id INTEGER NOT NULL,
+                    created_at TEXT
+                )
+            """)
+            
+            # Sincronizar tecnologías
+            technologies = db.query(models.Technology).all()
+            for tech in technologies:
+                # Verificar si ya existe en Turso
+                check_result = execute_turso_query(
+                    "SELECT technology_id FROM acd_m_technology WHERE technology_name = ?",
+                    [tech.technology_name]
+                )
+                
+                if not check_result or not check_result.get("result", {}).get("rows"):
+                    # No existe, insertar
+                    execute_turso_query(
+                        "INSERT INTO acd_m_technology (technology_id, technology_name, technology_created_at) VALUES (?, ?, ?)",
+                        [tech.technology_id, tech.technology_name, tech.technology_created_at.isoformat() if tech.technology_created_at else None]
+                    )
+            
+            # Sincronizar capacitaciones
+            trainings = db.query(models.Training).all()
+            for training in trainings:
+                execute_turso_query(
+                    "INSERT OR REPLACE INTO acd_m_training (training_id, training_name, training_description, training_status, training_created_at) VALUES (?, ?, ?, ?, ?)",
+                    [training.training_id, training.training_name, training.training_description, training.training_status, training.training_created_at.isoformat() if training.training_created_at else None]
+                )
+            
+            # Sincronizar relaciones
+            relations = db.query(models.TrainingTechnology).all()
+            for relation in relations:
+                execute_turso_query(
+                    "INSERT OR REPLACE INTO acd_t_training_technology (training_technology_id, training_id, technology_id, created_at) VALUES (?, ?, ?, ?)",
+                    [relation.training_technology_id, relation.training_id, relation.technology_id, relation.created_at.isoformat() if relation.created_at else None]
+                )
+            
+            results["turso_sync"] = "Datos sincronizados con Turso exitosamente"
+            
+        except Exception as turso_error:
+            results["turso_sync"] = f"Error sincronizando con Turso: {str(turso_error)}"
+        
+        return {
+            "message": "Tecnologías y capacitaciones generadas exitosamente",
+            "summary": {
+                "technologies_processed": len(technologies_data),
+                "trainings_processed": len(trainings_data),
+                "relations_created": len([r for r in results["relations"] if "Relacionado:" in r])
+            },
+            "details": results
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error generando datos: {str(e)}")
+
+# TRAINING ENDPOINTS
+@app.get("/api/v1/trainings", response_model=List[schemas.Training], tags=["Trainings"], summary="Listar capacitaciones")
+def read_trainings(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Obtener lista de todas las capacitaciones disponibles"""
+    trainings = db.query(models.Training).offset(skip).limit(limit).all()
+    return trainings
+
+@app.post("/api/v1/trainings", response_model=schemas.Training, tags=["Trainings"], summary="Crear capacitación")
+def create_training(training: schemas.TrainingCreate, db: Session = Depends(get_db)):
+    """Crear una nueva capacitación"""
+    db_training = models.Training(**training.dict())
+    db.add(db_training)
+    db.commit()
+    db.refresh(db_training)
+    return db_training
+
+@app.get("/api/v1/trainings/{training_id}", response_model=schemas.Training, tags=["Trainings"], summary="Obtener capacitación por ID")
+def read_training(training_id: int, db: Session = Depends(get_db)):
+    """Obtener información detallada de una capacitación"""
+    training = db.query(models.Training).filter(models.Training.training_id == training_id).first()
+    if training is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Capacitación no encontrada"
+        )
+    return training
+
+@app.get("/api/v1/trainings/{training_id}/technologies", response_model=List[schemas.Technology], tags=["Trainings"], summary="Tecnologías de una capacitación")
+def read_training_technologies(training_id: int, db: Session = Depends(get_db)):
+    """Obtener todas las tecnologías asociadas a una capacitación"""
+    training = db.query(models.Training).filter(models.Training.training_id == training_id).first()
+    if training is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Capacitación no encontrada"
+        )
+    
+    # Obtener tecnologías a través de la tabla de relación
+    technologies = db.query(models.Technology).join(
+        models.TrainingTechnology, 
+        models.Technology.technology_id == models.TrainingTechnology.technology_id
+    ).filter(
+        models.TrainingTechnology.training_id == training_id
+    ).all()
+    
+    return technologies
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

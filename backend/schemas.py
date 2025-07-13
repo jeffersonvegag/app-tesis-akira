@@ -185,3 +185,37 @@ class CourseAssignment(CourseAssignmentBase):
     
     class Config:
         from_attributes = True
+
+class TrainingBase(BaseModel):
+    training_name: str
+    training_description: Optional[str] = None
+
+class TrainingCreate(TrainingBase):
+    pass
+
+class Training(TrainingBase):
+    training_id: int
+    training_status: str
+    training_created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class TrainingTechnologyBase(BaseModel):
+    training_id: int
+    technology_id: int
+
+class TrainingTechnologyCreate(TrainingTechnologyBase):
+    pass
+
+class TrainingTechnology(TrainingTechnologyBase):
+    training_technology_id: int
+    created_at: datetime
+    technology: Technology
+    
+    class Config:
+        from_attributes = True
+
+class BulkDataRequest(BaseModel):
+    technologies: List[str]
+    trainings: List[dict]

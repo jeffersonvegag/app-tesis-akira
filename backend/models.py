@@ -142,3 +142,25 @@ class CourseAssignment(Base):
     course = relationship("Course")
     client = relationship("User", foreign_keys=[client_id])
     instructor = relationship("User", foreign_keys=[instructor_id])
+
+class Training(Base):
+    __tablename__ = "acd_m_training"
+    
+    training_id = Column(Integer, primary_key=True, index=True)
+    training_name = Column(String(100), nullable=False)
+    training_description = Column(Text, nullable=True)
+    training_status = Column(String(1), nullable=False, default='A')
+    training_created_at = Column(DateTime, default=datetime.utcnow)
+    
+    training_technologies = relationship("TrainingTechnology", back_populates="training")
+
+class TrainingTechnology(Base):
+    __tablename__ = "acd_t_training_technology"
+    
+    training_technology_id = Column(Integer, primary_key=True, index=True)
+    training_id = Column(Integer, ForeignKey("acd_m_training.training_id"), nullable=False)
+    technology_id = Column(Integer, ForeignKey("acd_m_technology.technology_id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    training = relationship("Training", back_populates="training_technologies")
+    technology = relationship("Technology")
