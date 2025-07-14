@@ -128,7 +128,8 @@ def setup_initial_data(db: Session = Depends(get_db)):
             persons = [
                 models.Person(person_dni=1234567890, person_first_name="Admin", person_last_name="Sistema", person_gender=1, person_email="admin@viamatica.com"),
                 models.Person(person_dni=1234567891, person_first_name="Juan", person_last_name="Empleado", person_gender=1, person_email="empleado@viamatica.com"),
-                models.Person(person_dni=1234567892, person_first_name="Maria", person_last_name="Supervisor", person_gender=2, person_email="supervisor@viamatica.com")
+                models.Person(person_dni=1234567892, person_first_name="Maria", person_last_name="Supervisor", person_gender=2, person_email="supervisor@viamatica.com"),
+                models.Person(person_dni=1234567893, person_first_name="Carlos", person_last_name="Instructor", person_gender=1, person_email="instructor@viamatica.com")
             ]
             db.add_all(persons)
             db.commit()
@@ -142,12 +143,42 @@ def setup_initial_data(db: Session = Depends(get_db)):
             users = [
                 models.User(user_username="admin", user_password=pwd_context.hash("admin123"), person_id=1, user_role=1, user_position_id=1),
                 models.User(user_username="supervisor", user_password=pwd_context.hash("sup123"), person_id=2, user_role=2, user_position_id=3),
-                models.User(user_username="cliente", user_password=pwd_context.hash("cli123"), person_id=3, user_role=3, user_position_id=1)
+                models.User(user_username="cliente", user_password=pwd_context.hash("cli123"), person_id=3, user_role=3, user_position_id=1),
+                models.User(user_username="instructor", user_password=pwd_context.hash("ins123"), person_id=4, user_role=4, user_position_id=2)
             ]
             db.add_all(users)
             db.commit()
             created_items.append(f"Creados {len(users)} usuarios")
         else:
+            # Verificar si existe el usuario instructor
+            instructor_user = db.query(models.User).filter(models.User.user_username == "instructor").first()
+            if not instructor_user:
+                # Crear persona instructor si no existe
+                instructor_person = db.query(models.Person).filter(models.Person.person_dni == 1234567893).first()
+                if not instructor_person:
+                    instructor_person = models.Person(
+                        person_dni=1234567893, 
+                        person_first_name="Carlos", 
+                        person_last_name="Instructor", 
+                        person_gender=1, 
+                        person_email="instructor@viamatica.com"
+                    )
+                    db.add(instructor_person)
+                    db.commit()
+                    db.refresh(instructor_person)
+                
+                # Crear usuario instructor
+                instructor_user = models.User(
+                    user_username="instructor", 
+                    user_password=pwd_context.hash("ins123"), 
+                    person_id=instructor_person.person_id, 
+                    user_role=4, 
+                    user_position_id=2
+                )
+                db.add(instructor_user)
+                db.commit()
+                created_items.append("Creado usuario instructor faltante")
+            
             created_items.append(f"Ya existen {existing_users} usuarios")
         
         return {
@@ -1703,6 +1734,9 @@ def create_user_training_assignment(assignment: schemas.UserTrainingAssignmentCr
         
         db.commit()
         
+        # Actualizar estado de capacitaciones del usuario
+        update_user_training_status(assignment.user_id, db)
+        
         return db_assignment
     
     except Exception as e:
@@ -1735,6 +1769,46 @@ def update_meeting_link(assignment_id: int, meeting_link_data: dict, db: Session
     db.refresh(assignment)
     
     return assignment
+
+@app.put("/api/v1/user-training-assignments/training/{training_id}/instructor", tags=["User Training Assignments"], summary="Actualizar instructor de capacitación")
+def update_training_instructor(training_id: int, request: dict, db: Session = Depends(get_db)):
+    """Actualizar instructor para todas las asignaciones de una capacitación"""
+    try:
+        instructor_id = request.get("instructor_id")
+        
+        # Verificar que el instructor existe si se proporciona
+        if instructor_id:
+            instructor = db.query(models.User).filter(
+                models.User.user_id == instructor_id,
+                models.User.user_role == 4  # Rol instructor
+            ).first()
+            
+            if not instructor:
+                raise HTTPException(status_code=404, detail="Instructor no encontrado")
+        
+        # Actualizar todas las asignaciones de la capacitación
+        assignments = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.training_id == training_id
+        ).all()
+        
+        if not assignments:
+            raise HTTPException(status_code=404, detail="No se encontraron asignaciones para esta capacitación")
+        
+        for assignment in assignments:
+            assignment.instructor_id = instructor_id
+        
+        db.commit()
+        
+        return {
+            "message": f"Instructor {'asignado' if instructor_id else 'removido'} exitosamente",
+            "training_id": training_id,
+            "instructor_id": instructor_id,
+            "updated_assignments": len(assignments)
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error actualizando instructor: {str(e)}")
 
 # USER TECHNOLOGY PROGRESS ENDPOINTS
 @app.get("/api/v1/user-technology-progress/assignment/{assignment_id}", response_model=List[schemas.UserTechnologyProgress], tags=["User Technology Progress"], summary="Obtener progreso por asignación")
@@ -1797,6 +1871,9 @@ def update_user_technology_progress(progress_id: int, progress_data: schemas.Use
                     assignment.assignment_status = 'assigned'
                 
                 db.commit()
+                
+                # Actualizar estado de capacitaciones del usuario
+                update_user_training_status(assignment.user_id, db)
         
         db.refresh(progress)
         return progress
@@ -1804,6 +1881,77 @@ def update_user_technology_progress(progress_id: int, progress_data: schemas.Use
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error actualizando progreso: {str(e)}")
+
+# Función auxiliar para actualizar estado de capacitaciones del usuario
+def update_user_training_status(user_id: int, db: Session):
+    """Actualizar estado de capacitaciones de un usuario"""
+    try:
+        # Obtener o crear estado del usuario
+        user_status = db.query(models.UserTrainingStatus).filter(
+            models.UserTrainingStatus.user_id == user_id
+        ).first()
+        
+        if not user_status:
+            user_status = models.UserTrainingStatus(user_id=user_id)
+            db.add(user_status)
+        
+        # Contar asignaciones por estado
+        assignments = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.user_id == user_id
+        ).all()
+        
+        total_assigned = len(assignments)
+        completed = len([a for a in assignments if a.assignment_status == 'completed'])
+        in_progress = len([a for a in assignments if a.assignment_status == 'in_progress'])
+        
+        # Actualizar contadores
+        user_status.total_trainings_assigned = total_assigned
+        user_status.trainings_completed = completed
+        user_status.trainings_in_progress = in_progress
+        user_status.last_updated = datetime.now()
+        
+        # Determinar estado general
+        if total_assigned == 0:
+            user_status.overall_status = 'no_training'
+        elif completed == total_assigned:
+            user_status.overall_status = 'all_completed'
+        elif in_progress > 0 or completed > 0:
+            user_status.overall_status = 'in_progress'
+        else:
+            user_status.overall_status = 'assigned'
+        
+        db.commit()
+        return user_status
+        
+    except Exception as e:
+        db.rollback()
+        raise e
+
+# USER TRAINING STATUS ENDPOINTS
+@app.get("/api/v1/user-training-status", response_model=List[schemas.UserTrainingStatus], tags=["User Training Status"], summary="Listar estados de capacitación")
+def read_user_training_statuses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Obtener estados de capacitación de todos los usuarios"""
+    statuses = db.query(models.UserTrainingStatus).offset(skip).limit(limit).all()
+    return statuses
+
+@app.get("/api/v1/user-training-status/user/{user_id}", response_model=schemas.UserTrainingStatus, tags=["User Training Status"], summary="Obtener estado por usuario")
+def read_user_training_status_by_user(user_id: int, db: Session = Depends(get_db)):
+    """Obtener estado de capacitación de un usuario específico"""
+    status = db.query(models.UserTrainingStatus).filter(
+        models.UserTrainingStatus.user_id == user_id
+    ).first()
+    
+    if not status:
+        # Crear y retornar estado inicial
+        status = update_user_training_status(user_id, db)
+    
+    return status
+
+@app.put("/api/v1/user-training-status/refresh/{user_id}", response_model=schemas.UserTrainingStatus, tags=["User Training Status"], summary="Actualizar estado de usuario")
+def refresh_user_training_status(user_id: int, db: Session = Depends(get_db)):
+    """Recalcular y actualizar estado de capacitación de un usuario"""
+    status = update_user_training_status(user_id, db)
+    return status
 
 if __name__ == "__main__":
     import uvicorn

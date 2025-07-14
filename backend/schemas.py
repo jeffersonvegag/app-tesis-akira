@@ -224,6 +224,7 @@ class BulkDataRequest(BaseModel):
 class UserTrainingAssignmentBase(BaseModel):
     user_id: int
     training_id: int
+    instructor_id: Optional[int] = None
     instructor_meeting_link: Optional[str] = None
 
 class UserTrainingAssignmentCreate(UserTrainingAssignmentBase):
@@ -236,12 +237,14 @@ class UserTrainingAssignment(UserTrainingAssignmentBase):
     completion_percentage: float
     user: User
     training: Training
+    instructor: Optional[User] = None
     
     class Config:
         from_attributes = True
 
 class UserTrainingAssignmentUpdate(BaseModel):
     assignment_status: Optional[str] = None
+    instructor_id: Optional[int] = None
     instructor_meeting_link: Optional[str] = None
 
 # Esquemas para progreso de tecnologías por usuario
@@ -264,3 +267,29 @@ class UserTechnologyProgress(UserTechnologyProgressBase):
 
 class UserTechnologyProgressUpdate(BaseModel):
     is_completed: bool
+
+# Esquemas para estado de capacitaciones por usuario
+class UserTrainingStatusBase(BaseModel):
+    user_id: int
+    total_trainings_assigned: int = 0
+    trainings_completed: int = 0
+    trainings_in_progress: int = 0
+    overall_status: str = 'no_training'
+
+class UserTrainingStatusCreate(UserTrainingStatusBase):
+    pass
+
+class UserTrainingStatus(UserTrainingStatusBase):
+    status_id: int
+    last_updated: datetime
+    created_at: datetime
+    user: User
+    
+    class Config:
+        from_attributes = True
+
+class UserTrainingStatusUpdate(BaseModel):
+    total_trainings_assigned: Optional[int] = None
+    trainings_completed: Optional[int] = None
+    trainings_in_progress: Optional[int] = None
+    overall_status: Optional[str] = None

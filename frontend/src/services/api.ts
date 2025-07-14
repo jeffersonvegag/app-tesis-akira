@@ -24,6 +24,8 @@ import {
   UserTrainingAssignmentCreateForm,
   UserTechnologyProgress,
   UserTechnologyProgressUpdateForm,
+  UserTrainingStatus,
+  UserTrainingStatusCreateForm,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -326,6 +328,14 @@ export const userTrainingAssignmentService = {
     });
     return response.data;
   },
+
+  // Actualizar instructor de capacitación
+  updateTrainingInstructor: async (trainingId: number, instructorId?: number): Promise<any> => {
+    const response = await api.put(`/user-training-assignments/training/${trainingId}/instructor`, {
+      instructor_id: instructorId
+    });
+    return response.data;
+  },
 };
 
 // Servicios de progreso de tecnologías
@@ -339,6 +349,27 @@ export const userTechnologyProgressService = {
   // Actualizar progreso de una tecnología
   updateProgress: async (progressId: number, progressData: UserTechnologyProgressUpdateForm): Promise<UserTechnologyProgress> => {
     const response = await api.put(`/user-technology-progress/${progressId}`, progressData);
+    return response.data;
+  },
+};
+
+// Servicios de estado de capacitaciones por usuario
+export const userTrainingStatusService = {
+  // Obtener todos los estados
+  getStatuses: async (skip = 0, limit = 100): Promise<UserTrainingStatus[]> => {
+    const response = await api.get(`/user-training-status?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Obtener estado por usuario
+  getStatusByUser: async (userId: number): Promise<UserTrainingStatus> => {
+    const response = await api.get(`/user-training-status/user/${userId}`);
+    return response.data;
+  },
+
+  // Actualizar estado del usuario
+  refreshStatus: async (userId: number): Promise<UserTrainingStatus> => {
+    const response = await api.put(`/user-training-status/refresh/${userId}`);
     return response.data;
   },
 };

@@ -17,7 +17,8 @@ import {
   Download,
   ExternalLink,
   Users,
-  MapPin
+  MapPin,
+  GraduationCap
 } from 'lucide-react';
 
 interface ClientDashboardProps {
@@ -144,6 +145,19 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                             {assignment.training.training_description}
                           </p>
                         )}
+
+                        {/* Información del instructor */}
+                        <div className="flex items-center gap-2 mb-3 text-sm">
+                          <GraduationCap className="w-4 h-4 text-gray-500" />
+                          <span className="text-gray-600">Instructor:</span>
+                          {assignment.instructor ? (
+                            <span className="font-medium text-gray-900">
+                              {assignment.instructor.person.person_first_name} {assignment.instructor.person.person_last_name}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500 italic">No hay instructor asignado</span>
+                          )}
+                        </div>
 
                         {/* Barra de progreso */}
                         <div className="w-full bg-gray-200 rounded-full h-2 mb-2">

@@ -224,17 +224,20 @@ export interface UserTrainingAssignment {
   assignment_id: number;
   user_id: number;
   training_id: number;
+  instructor_id?: number;
   assignment_status: string; // 'assigned', 'in_progress', 'completed'
   assignment_created_at: string;
   completion_percentage: number;
   instructor_meeting_link?: string;
   user: User;
   training: Training;
+  instructor?: User;
 }
 
 export interface UserTrainingAssignmentCreateForm {
   user_id: number;
   training_id: number;
+  instructor_id?: number;
   instructor_meeting_link?: string;
 }
 
@@ -251,4 +254,25 @@ export interface UserTechnologyProgress {
 
 export interface UserTechnologyProgressUpdateForm {
   is_completed: boolean;
+}
+
+// Tipos para estado de capacitaciones por usuario
+export interface UserTrainingStatus {
+  status_id: number;
+  user_id: number;
+  total_trainings_assigned: number;
+  trainings_completed: number;
+  trainings_in_progress: number;
+  overall_status: string; // 'no_training', 'assigned', 'in_progress', 'all_completed'
+  last_updated: string;
+  created_at: string;
+  user: User;
+}
+
+export interface UserTrainingStatusCreateForm {
+  user_id: number;
+  total_trainings_assigned?: number;
+  trainings_completed?: number;
+  trainings_in_progress?: number;
+  overall_status?: string;
 }

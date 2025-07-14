@@ -171,13 +171,15 @@ class UserTrainingAssignment(Base):
     assignment_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False)
     training_id = Column(Integer, ForeignKey("acd_m_training.training_id"), nullable=False)
+    instructor_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=True)
     assignment_status = Column(String(20), nullable=False, default='assigned')  # assigned, in_progress, completed
     assignment_created_at = Column(DateTime, default=datetime.utcnow)
     completion_percentage = Column(DECIMAL(5,2), nullable=False, default=0.00)
     instructor_meeting_link = Column(String(500), nullable=True)
     
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id])
     training = relationship("Training")
+    instructor = relationship("User", foreign_keys=[instructor_id])
     technology_progress = relationship("UserTechnologyProgress", back_populates="assignment")
 
 class UserTechnologyProgress(Base):
@@ -192,3 +194,17 @@ class UserTechnologyProgress(Base):
     
     assignment = relationship("UserTrainingAssignment", back_populates="technology_progress")
     technology = relationship("Technology")
+
+class UserTrainingStatus(Base):
+    __tablename__ = "acd_t_user_training_status"
+    
+    status_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False, unique=True)
+    total_trainings_assigned = Column(Integer, nullable=False, default=0)
+    trainings_completed = Column(Integer, nullable=False, default=0)
+    trainings_in_progress = Column(Integer, nullable=False, default=0)
+    overall_status = Column(String(20), nullable=False, default='no_training')  # no_training, in_progress, completed
+    last_updated = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User")

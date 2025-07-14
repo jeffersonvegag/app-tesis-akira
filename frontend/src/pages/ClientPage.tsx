@@ -22,7 +22,8 @@ import {
   Circle,
   FileText,
   Video,
-  Loader2
+  Loader2,
+  GraduationCap
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -105,6 +106,20 @@ const AssignedTrainingCard: React.FC<{
                 {assignment.training.training_description}
               </p>
             )}
+            
+            {/* Información del instructor */}
+            <div className="flex items-center gap-2 mt-3 text-sm">
+              <GraduationCap className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-600">Instructor:</span>
+              {assignment.instructor ? (
+                <span className="font-medium text-gray-900">
+                  {assignment.instructor.person.person_first_name} {assignment.instructor.person.person_last_name}
+                </span>
+              ) : (
+                <span className="text-gray-500 italic">No hay instructor asignado</span>
+              )}
+            </div>
+            
             <div className="flex items-center gap-2 mt-3">
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                 assignment.assignment_status === 'completed' ? 'bg-green-100 text-green-800' :
