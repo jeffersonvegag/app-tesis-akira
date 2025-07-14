@@ -17,6 +17,13 @@ import {
   Gender,
   CourseAssignment,
   CourseAssignmentCreateForm,
+  Training,
+  TrainingCreateForm,
+  TrainingTechnology,
+  UserTrainingAssignment,
+  UserTrainingAssignmentCreateForm,
+  UserTechnologyProgress,
+  UserTechnologyProgressUpdateForm,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -264,4 +271,76 @@ export const courseAssignmentService = {
     return response.data;
   },
 };
+
+// Servicios de capacitaciones
+export const trainingService = {
+  // Obtener todas las capacitaciones
+  getTrainings: async (skip = 0, limit = 100): Promise<Training[]> => {
+    const response = await api.get(`/trainings?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Obtener capacitación por ID
+  getTrainingById: async (id: number): Promise<Training> => {
+    const response = await api.get(`/trainings/${id}`);
+    return response.data;
+  },
+
+  // Crear nueva capacitación
+  createTraining: async (trainingData: TrainingCreateForm): Promise<Training> => {
+    const response = await api.post('/trainings', trainingData);
+    return response.data;
+  },
+
+  // Obtener tecnologías de una capacitación
+  getTrainingTechnologies: async (trainingId: number): Promise<Technology[]> => {
+    const response = await api.get(`/trainings/${trainingId}/technologies`);
+    return response.data;
+  },
+};
+
+// Servicios de asignaciones de capacitaciones
+export const userTrainingAssignmentService = {
+  // Obtener todas las asignaciones
+  getAssignments: async (skip = 0, limit = 100): Promise<UserTrainingAssignment[]> => {
+    const response = await api.get(`/user-training-assignments?skip=${skip}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Obtener asignaciones por usuario
+  getAssignmentsByUser: async (userId: number): Promise<UserTrainingAssignment[]> => {
+    const response = await api.get(`/user-training-assignments/user/${userId}`);
+    return response.data;
+  },
+
+  // Crear nueva asignación
+  createAssignment: async (assignmentData: UserTrainingAssignmentCreateForm): Promise<UserTrainingAssignment> => {
+    const response = await api.post('/user-training-assignments', assignmentData);
+    return response.data;
+  },
+
+  // Actualizar enlace de reunión del instructor
+  updateMeetingLink: async (assignmentId: number, meetingLink: string): Promise<UserTrainingAssignment> => {
+    const response = await api.put(`/user-training-assignments/${assignmentId}/meeting-link`, {
+      instructor_meeting_link: meetingLink
+    });
+    return response.data;
+  },
+};
+
+// Servicios de progreso de tecnologías
+export const userTechnologyProgressService = {
+  // Obtener progreso por asignación
+  getProgressByAssignment: async (assignmentId: number): Promise<UserTechnologyProgress[]> => {
+    const response = await api.get(`/user-technology-progress/assignment/${assignmentId}`);
+    return response.data;
+  },
+
+  // Actualizar progreso de una tecnología
+  updateProgress: async (progressId: number, progressData: UserTechnologyProgressUpdateForm): Promise<UserTechnologyProgress> => {
+    const response = await api.put(`/user-technology-progress/${progressId}`, progressData);
+    return response.data;
+  },
+};
+
 export default api;

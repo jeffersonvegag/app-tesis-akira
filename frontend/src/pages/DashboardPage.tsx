@@ -223,14 +223,17 @@ export const DashboardPage: React.FC = () => {
                 Accede a tus cursos asignados, participa en clases en vivo y descarga material de apoyo.
                 Tu supervisor ha diseñado un plan personalizado según tu nivel y especialidad.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                <a href="/my-courses" className="bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors">
-                  Ver Mis Cursos
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                <a href="/capacitaciones" className="bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 transition-colors text-center">
+                  Capacitaciones
                 </a>
-                <a href="/materials" className="bg-blue-100 text-blue-800 px-6 py-3 rounded-md hover:bg-blue-200 transition-colors">
+                <a href="/my-courses" className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors text-center">
+                  Mis Capacitaciones
+                </a>
+                <a href="/materials" className="bg-blue-100 text-blue-800 px-6 py-3 rounded-md hover:bg-blue-200 transition-colors text-center">
                   Material de Apoyo
                 </a>
-                <a href="/my-courses" className="bg-green-100 text-green-800 px-6 py-3 rounded-md hover:bg-green-200 transition-colors">
+                <a href="/my-courses" className="bg-green-100 text-green-800 px-6 py-3 rounded-md hover:bg-green-200 transition-colors text-center">
                   Mi Progreso
                 </a>
               </div>

@@ -219,3 +219,48 @@ class TrainingTechnology(TrainingTechnologyBase):
 class BulkDataRequest(BaseModel):
     technologies: List[str]
     trainings: List[dict]
+
+# Esquemas para asignaciones de capacitaciones a usuarios
+class UserTrainingAssignmentBase(BaseModel):
+    user_id: int
+    training_id: int
+    instructor_meeting_link: Optional[str] = None
+
+class UserTrainingAssignmentCreate(UserTrainingAssignmentBase):
+    pass
+
+class UserTrainingAssignment(UserTrainingAssignmentBase):
+    assignment_id: int
+    assignment_status: str
+    assignment_created_at: datetime
+    completion_percentage: float
+    user: User
+    training: Training
+    
+    class Config:
+        from_attributes = True
+
+class UserTrainingAssignmentUpdate(BaseModel):
+    assignment_status: Optional[str] = None
+    instructor_meeting_link: Optional[str] = None
+
+# Esquemas para progreso de tecnologías por usuario
+class UserTechnologyProgressBase(BaseModel):
+    assignment_id: int
+    technology_id: int
+    is_completed: bool = False
+
+class UserTechnologyProgressCreate(UserTechnologyProgressBase):
+    pass
+
+class UserTechnologyProgress(UserTechnologyProgressBase):
+    progress_id: int
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    technology: Technology
+    
+    class Config:
+        from_attributes = True
+
+class UserTechnologyProgressUpdate(BaseModel):
+    is_completed: bool

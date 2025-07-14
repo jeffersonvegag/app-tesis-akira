@@ -196,3 +196,59 @@ export interface CourseAssignmentCreateForm {
   assignment_start_date?: string;
   assignment_end_date?: string;
 }
+
+// Tipos para capacitaciones
+export interface Training {
+  training_id: number;
+  training_name: string;
+  training_description?: string;
+  training_status: string;
+  training_created_at: string;
+}
+
+export interface TrainingCreateForm {
+  training_name: string;
+  training_description?: string;
+}
+
+export interface TrainingTechnology {
+  training_technology_id: number;
+  training_id: number;
+  technology_id: number;
+  training: Training;
+  technology: Technology;
+}
+
+// Tipos para asignación de capacitaciones a usuarios
+export interface UserTrainingAssignment {
+  assignment_id: number;
+  user_id: number;
+  training_id: number;
+  assignment_status: string; // 'assigned', 'in_progress', 'completed'
+  assignment_created_at: string;
+  completion_percentage: number;
+  instructor_meeting_link?: string;
+  user: User;
+  training: Training;
+}
+
+export interface UserTrainingAssignmentCreateForm {
+  user_id: number;
+  training_id: number;
+  instructor_meeting_link?: string;
+}
+
+// Tipos para progreso de tecnologías por usuario
+export interface UserTechnologyProgress {
+  progress_id: number;
+  assignment_id: number;
+  technology_id: number;
+  is_completed: boolean;
+  completed_at?: string;
+  created_at: string;
+  technology: Technology;
+}
+
+export interface UserTechnologyProgressUpdateForm {
+  is_completed: boolean;
+}

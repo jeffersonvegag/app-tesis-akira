@@ -1659,6 +1659,152 @@ def read_training_technologies(training_id: int, db: Session = Depends(get_db)):
     
     return technologies
 
+# USER TRAINING ASSIGNMENT ENDPOINTS
+@app.get("/api/v1/user-training-assignments", response_model=List[schemas.UserTrainingAssignment], tags=["User Training Assignments"], summary="Listar asignaciones de capacitaciones")
+def read_user_training_assignments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Obtener lista de todas las asignaciones de capacitaciones"""
+    assignments = db.query(models.UserTrainingAssignment).offset(skip).limit(limit).all()
+    return assignments
+
+@app.post("/api/v1/user-training-assignments", response_model=schemas.UserTrainingAssignment, tags=["User Training Assignments"], summary="Crear asignación de capacitación")
+def create_user_training_assignment(assignment: schemas.UserTrainingAssignmentCreate, db: Session = Depends(get_db)):
+    """Crear una nueva asignación de capacitación a un usuario"""
+    try:
+        # Verificar que no exista ya una asignación para el mismo usuario y capacitación
+        existing = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.user_id == assignment.user_id,
+            models.UserTrainingAssignment.training_id == assignment.training_id
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El usuario ya tiene asignada esta capacitación"
+            )
+        
+        # Crear la asignación
+        db_assignment = models.UserTrainingAssignment(**assignment.dict())
+        db.add(db_assignment)
+        db.commit()
+        db.refresh(db_assignment)
+        
+        # Crear registros de progreso para cada tecnología de la capacitación
+        training_technologies = db.query(models.TrainingTechnology).filter(
+            models.TrainingTechnology.training_id == assignment.training_id
+        ).all()
+        
+        for tech_relation in training_technologies:
+            progress = models.UserTechnologyProgress(
+                assignment_id=db_assignment.assignment_id,
+                technology_id=tech_relation.technology_id,
+                is_completed='N'
+            )
+            db.add(progress)
+        
+        db.commit()
+        
+        return db_assignment
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creando asignación: {str(e)}")
+
+@app.get("/api/v1/user-training-assignments/user/{user_id}", response_model=List[schemas.UserTrainingAssignment], tags=["User Training Assignments"], summary="Obtener asignaciones por usuario")
+def read_user_training_assignments_by_user(user_id: int, db: Session = Depends(get_db)):
+    """Obtener todas las asignaciones de capacitaciones de un usuario específico"""
+    assignments = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.user_id == user_id
+    ).all()
+    return assignments
+
+@app.put("/api/v1/user-training-assignments/{assignment_id}/meeting-link", response_model=schemas.UserTrainingAssignment, tags=["User Training Assignments"], summary="Actualizar enlace de reunión")
+def update_meeting_link(assignment_id: int, meeting_link_data: dict, db: Session = Depends(get_db)):
+    """Actualizar el enlace de reunión de una asignación"""
+    assignment = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.assignment_id == assignment_id
+    ).first()
+    
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asignación no encontrada"
+        )
+    
+    assignment.instructor_meeting_link = meeting_link_data.get('instructor_meeting_link')
+    db.commit()
+    db.refresh(assignment)
+    
+    return assignment
+
+# USER TECHNOLOGY PROGRESS ENDPOINTS
+@app.get("/api/v1/user-technology-progress/assignment/{assignment_id}", response_model=List[schemas.UserTechnologyProgress], tags=["User Technology Progress"], summary="Obtener progreso por asignación")
+def read_user_technology_progress_by_assignment(assignment_id: int, db: Session = Depends(get_db)):
+    """Obtener el progreso de tecnologías para una asignación específica"""
+    progress = db.query(models.UserTechnologyProgress).filter(
+        models.UserTechnologyProgress.assignment_id == assignment_id
+    ).all()
+    return progress
+
+@app.put("/api/v1/user-technology-progress/{progress_id}", response_model=schemas.UserTechnologyProgress, tags=["User Technology Progress"], summary="Actualizar progreso de tecnología")
+def update_user_technology_progress(progress_id: int, progress_data: schemas.UserTechnologyProgressUpdate, db: Session = Depends(get_db)):
+    """Actualizar el estado de completitud de una tecnología"""
+    try:
+        progress = db.query(models.UserTechnologyProgress).filter(
+            models.UserTechnologyProgress.progress_id == progress_id
+        ).first()
+        
+        if progress is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Progreso no encontrado"
+            )
+        
+        # Actualizar estado
+        progress.is_completed = 'Y' if progress_data.is_completed else 'N'
+        
+        if progress_data.is_completed:
+            progress.completed_at = datetime.now()
+        else:
+            progress.completed_at = None
+        
+        db.commit()
+        
+        # Recalcular porcentaje de completitud de la asignación
+        assignment = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.assignment_id == progress.assignment_id
+        ).first()
+        
+        if assignment:
+            total_technologies = db.query(models.UserTechnologyProgress).filter(
+                models.UserTechnologyProgress.assignment_id == progress.assignment_id
+            ).count()
+            
+            completed_technologies = db.query(models.UserTechnologyProgress).filter(
+                models.UserTechnologyProgress.assignment_id == progress.assignment_id,
+                models.UserTechnologyProgress.is_completed == 'Y'
+            ).count()
+            
+            if total_technologies > 0:
+                completion_percentage = (completed_technologies / total_technologies) * 100
+                assignment.completion_percentage = completion_percentage
+                
+                # Actualizar estado de la asignación
+                if completion_percentage == 100:
+                    assignment.assignment_status = 'completed'
+                elif completion_percentage > 0:
+                    assignment.assignment_status = 'in_progress'
+                else:
+                    assignment.assignment_status = 'assigned'
+                
+                db.commit()
+        
+        db.refresh(progress)
+        return progress
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error actualizando progreso: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

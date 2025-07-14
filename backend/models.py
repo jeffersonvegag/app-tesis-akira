@@ -164,3 +164,31 @@ class TrainingTechnology(Base):
     
     training = relationship("Training", back_populates="training_technologies")
     technology = relationship("Technology")
+
+class UserTrainingAssignment(Base):
+    __tablename__ = "acd_t_user_training_assignment"
+    
+    assignment_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False)
+    training_id = Column(Integer, ForeignKey("acd_m_training.training_id"), nullable=False)
+    assignment_status = Column(String(20), nullable=False, default='assigned')  # assigned, in_progress, completed
+    assignment_created_at = Column(DateTime, default=datetime.utcnow)
+    completion_percentage = Column(DECIMAL(5,2), nullable=False, default=0.00)
+    instructor_meeting_link = Column(String(500), nullable=True)
+    
+    user = relationship("User")
+    training = relationship("Training")
+    technology_progress = relationship("UserTechnologyProgress", back_populates="assignment")
+
+class UserTechnologyProgress(Base):
+    __tablename__ = "acd_t_user_technology_progress"
+    
+    progress_id = Column(Integer, primary_key=True, index=True)
+    assignment_id = Column(Integer, ForeignKey("acd_t_user_training_assignment.assignment_id"), nullable=False)
+    technology_id = Column(Integer, ForeignKey("acd_m_technology.technology_id"), nullable=False)
+    is_completed = Column(String(1), nullable=False, default='N')  # Y/N
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    assignment = relationship("UserTrainingAssignment", back_populates="technology_progress")
+    technology = relationship("Technology")
