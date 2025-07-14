@@ -15,6 +15,7 @@ import UserManagementPage from './pages/UserManagementPage';
 import SettingsPage from './pages/SettingsPage';
 import CourseManagementPage from './pages/CourseManagementPage';
 import CourseAssignmentsPage from './pages/CourseAssignmentsPage';
+import { CapacitacionesPage } from './pages/CapacitacionesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +74,7 @@ const App: React.FC = () => {
               <Route path="reports" element={<ReportsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="/course-assignments" element={<CourseAssignmentsPage />} />
+              <Route path="capacitaciones" element={<CapacitacionesPage />} />
 
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

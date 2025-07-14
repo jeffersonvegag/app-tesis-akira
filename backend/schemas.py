@@ -185,3 +185,82 @@ class CourseAssignment(CourseAssignmentBase):
     
     class Config:
         from_attributes = True
+
+class TrainingBase(BaseModel):
+    training_name: str
+    training_description: Optional[str] = None
+
+class TrainingCreate(TrainingBase):
+    pass
+
+class Training(TrainingBase):
+    training_id: int
+    training_status: str
+    training_created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class TrainingTechnologyBase(BaseModel):
+    training_id: int
+    technology_id: int
+
+class TrainingTechnologyCreate(TrainingTechnologyBase):
+    pass
+
+class TrainingTechnology(TrainingTechnologyBase):
+    training_technology_id: int
+    created_at: datetime
+    technology: Technology
+    
+    class Config:
+        from_attributes = True
+
+class BulkDataRequest(BaseModel):
+    technologies: List[str]
+    trainings: List[dict]
+
+# Esquemas para asignaciones de capacitaciones a usuarios
+class UserTrainingAssignmentBase(BaseModel):
+    user_id: int
+    training_id: int
+    instructor_meeting_link: Optional[str] = None
+
+class UserTrainingAssignmentCreate(UserTrainingAssignmentBase):
+    pass
+
+class UserTrainingAssignment(UserTrainingAssignmentBase):
+    assignment_id: int
+    assignment_status: str
+    assignment_created_at: datetime
+    completion_percentage: float
+    user: User
+    training: Training
+    
+    class Config:
+        from_attributes = True
+
+class UserTrainingAssignmentUpdate(BaseModel):
+    assignment_status: Optional[str] = None
+    instructor_meeting_link: Optional[str] = None
+
+# Esquemas para progreso de tecnologías por usuario
+class UserTechnologyProgressBase(BaseModel):
+    assignment_id: int
+    technology_id: int
+    is_completed: bool = False
+
+class UserTechnologyProgressCreate(UserTechnologyProgressBase):
+    pass
+
+class UserTechnologyProgress(UserTechnologyProgressBase):
+    progress_id: int
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    technology: Technology
+    
+    class Config:
+        from_attributes = True
+
+class UserTechnologyProgressUpdate(BaseModel):
+    is_completed: bool
