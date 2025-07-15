@@ -1096,6 +1096,68 @@ def create_turso_tables():
                 course_modality_id INTEGER,
                 course_credentials TEXT DEFAULT '',
                 course_created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_m_training (
+                training_id INTEGER PRIMARY KEY,
+                training_name TEXT NOT NULL,
+                training_description TEXT,
+                training_status TEXT DEFAULT 'A',
+                training_created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_t_training_technology (
+                training_technology_id INTEGER PRIMARY KEY,
+                training_id INTEGER NOT NULL,
+                technology_id INTEGER NOT NULL,
+                created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_t_user_training_assignment (
+                assignment_id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                training_id INTEGER NOT NULL,
+                instructor_id INTEGER,
+                assignment_status TEXT DEFAULT 'assigned',
+                assignment_created_at TEXT,
+                completion_percentage REAL DEFAULT 0.00,
+                instructor_meeting_link TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_t_user_training_status (
+                status_id INTEGER PRIMARY KEY,
+                user_id INTEGER UNIQUE NOT NULL,
+                total_trainings_assigned INTEGER DEFAULT 0,
+                trainings_completed INTEGER DEFAULT 0,
+                trainings_in_progress INTEGER DEFAULT 0,
+                overall_status TEXT DEFAULT 'no_training',
+                last_updated TEXT,
+                created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_t_user_technology_progress (
+                progress_id INTEGER PRIMARY KEY,
+                assignment_id INTEGER NOT NULL,
+                technology_id INTEGER NOT NULL,
+                is_completed TEXT DEFAULT 'N',
+                completed_at TEXT,
+                created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_m_career_plan (
+                career_plan_id INTEGER PRIMARY KEY,
+                course_id INTEGER NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_t_user_career_plan (
+                user_career_plan_id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                career_plan_id INTEGER NOT NULL,
+                career_plan_status TEXT DEFAULT 'P',
+                user_career_plan_created_at TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS acd_t_course_assignment (
+                course_assignment_id INTEGER PRIMARY KEY,
+                course_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
+                instructor_id INTEGER,
+                assignment_status TEXT DEFAULT 'P',
+                assignment_created_at TEXT,
+                assignment_start_date TEXT,
+                assignment_end_date TEXT
             )"""
         ]
         
@@ -1123,7 +1185,18 @@ def sync_data_to_turso(db: Session = Depends(get_db)):
     try:
         results = {"success": [], "errors": []}
         
-        # Primero limpiar las tablas de Turso
+        # Primero limpiar las tablas de Turso (orden importante por FK)
+        execute_turso_query("DELETE FROM acd_t_user_technology_progress")
+        execute_turso_query("DELETE FROM acd_t_user_training_assignment")
+        execute_turso_query("DELETE FROM acd_t_user_training_status")
+        execute_turso_query("DELETE FROM acd_t_user_career_plan")
+        execute_turso_query("DELETE FROM acd_t_course_assignment")
+        execute_turso_query("DELETE FROM acd_m_career_plan")
+        execute_turso_query("DELETE FROM acd_t_training_technology")
+        execute_turso_query("DELETE FROM acd_m_training")
+        execute_turso_query("DELETE FROM acd_m_course")
+        execute_turso_query("DELETE FROM acd_c_course_modality")
+        execute_turso_query("DELETE FROM acd_m_technology")
         execute_turso_query("DELETE FROM per_m_user")
         execute_turso_query("DELETE FROM per_m_person") 
         execute_turso_query("DELETE FROM acd_m_user_position")
@@ -1218,14 +1291,212 @@ def sync_data_to_turso(db: Session = Depends(get_db)):
                 results["success"].append(f"User {user.user_username}")
             else:
                 results["errors"].append(f"User {user.user_username}")
+
+        # Sincronizar tecnologías
+        technologies = db.query(models.Technology).all()
+        for tech in technologies:
+            query = "INSERT INTO acd_m_technology (technology_id, technology_name, technology_created_at) VALUES (?, ?, ?)"
+            params = [
+                tech.technology_id,
+                tech.technology_name,
+                tech.technology_created_at.isoformat() if tech.technology_created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"Technology {tech.technology_name}")
+            else:
+                results["errors"].append(f"Technology {tech.technology_name}")
+
+        # Sincronizar modalidades de curso
+        modalities = db.query(models.CourseModality).all()
+        for modality in modalities:
+            query = "INSERT INTO acd_c_course_modality (course_modality_id, course_modality_name, course_modality_created_at) VALUES (?, ?, ?)"
+            params = [
+                modality.course_modality_id,
+                modality.course_modality_name,
+                modality.course_modality_created_at.isoformat() if modality.course_modality_created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"Modality {modality.course_modality_name}")
+            else:
+                results["errors"].append(f"Modality {modality.course_modality_name}")
+
+        # Sincronizar cursos
+        courses = db.query(models.Course).all()
+        for course in courses:
+            # Convertir time a string para Turso
+            duration_str = str(course.course_duration) if course.course_duration else None
+            query = "INSERT INTO acd_m_course (course_id, course_name, course_link, course_duration, technology_id, course_modality_id, course_credentials, course_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            params = [
+                course.course_id,
+                course.course_name,
+                course.course_link,
+                duration_str,
+                course.technology_id,
+                course.course_modality_id,
+                course.course_credentials,
+                course.course_created_at.isoformat() if course.course_created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"Course {course.course_name[:50]}...")
+            else:
+                results["errors"].append(f"Course {course.course_name[:50]}...")
+
+        # Sincronizar capacitaciones
+        trainings = db.query(models.Training).all()
+        for training in trainings:
+            query = "INSERT INTO acd_m_training (training_id, training_name, training_description, training_status, training_created_at) VALUES (?, ?, ?, ?, ?)"
+            params = [
+                training.training_id,
+                training.training_name,
+                training.training_description,
+                training.training_status,
+                training.training_created_at.isoformat() if training.training_created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"Training {training.training_name}")
+            else:
+                results["errors"].append(f"Training {training.training_name}")
+
+        # Sincronizar relaciones capacitación-tecnología
+        training_techs = db.query(models.TrainingTechnology).all()
+        for tt in training_techs:
+            query = "INSERT INTO acd_t_training_technology (training_technology_id, training_id, technology_id, created_at) VALUES (?, ?, ?, ?)"
+            params = [
+                tt.training_technology_id,
+                tt.training_id,
+                tt.technology_id,
+                tt.created_at.isoformat() if tt.created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"TrainingTech {tt.training_technology_id}")
+            else:
+                results["errors"].append(f"TrainingTech {tt.training_technology_id}")
+
+        # Sincronizar asignaciones de capacitación
+        assignments = db.query(models.UserTrainingAssignment).all()
+        for assignment in assignments:
+            query = "INSERT INTO acd_t_user_training_assignment (assignment_id, user_id, training_id, instructor_id, assignment_status, assignment_created_at, completion_percentage, instructor_meeting_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            params = [
+                assignment.assignment_id,
+                assignment.user_id,
+                assignment.training_id,
+                assignment.instructor_id,
+                assignment.assignment_status,
+                assignment.assignment_created_at.isoformat() if assignment.assignment_created_at else None,
+                float(assignment.completion_percentage) if assignment.completion_percentage else 0.0,
+                assignment.instructor_meeting_link
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"Assignment {assignment.assignment_id}")
+            else:
+                results["errors"].append(f"Assignment {assignment.assignment_id}")
+
+        # Sincronizar estados de capacitación de usuarios
+        statuses = db.query(models.UserTrainingStatus).all()
+        for status in statuses:
+            query = "INSERT INTO acd_t_user_training_status (status_id, user_id, total_trainings_assigned, trainings_completed, trainings_in_progress, overall_status, last_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            params = [
+                status.status_id,
+                status.user_id,
+                status.total_trainings_assigned,
+                status.trainings_completed,
+                status.trainings_in_progress,
+                status.overall_status,
+                status.last_updated.isoformat() if status.last_updated else None,
+                status.created_at.isoformat() if status.created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"UserStatus {status.user_id}")
+            else:
+                results["errors"].append(f"UserStatus {status.user_id}")
+
+        # Sincronizar progreso de tecnología por usuario
+        progresses = db.query(models.UserTechnologyProgress).all()
+        for progress in progresses:
+            query = "INSERT INTO acd_t_user_technology_progress (progress_id, assignment_id, technology_id, is_completed, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+            params = [
+                progress.progress_id,
+                progress.assignment_id,
+                progress.technology_id,
+                progress.is_completed,
+                progress.completed_at.isoformat() if progress.completed_at else None,
+                progress.created_at.isoformat() if progress.created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"Progress {progress.progress_id}")
+            else:
+                results["errors"].append(f"Progress {progress.progress_id}")
+
+        # Sincronizar planes de carrera
+        career_plans = db.query(models.CareerPlan).all()
+        for cp in career_plans:
+            query = "INSERT INTO acd_m_career_plan (career_plan_id, course_id) VALUES (?, ?)"
+            params = [cp.career_plan_id, cp.course_id]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"CareerPlan {cp.career_plan_id}")
+            else:
+                results["errors"].append(f"CareerPlan {cp.career_plan_id}")
+
+        # Sincronizar asignaciones de planes de carrera
+        user_career_plans = db.query(models.UserCareerPlan).all()
+        for ucp in user_career_plans:
+            query = "INSERT INTO acd_t_user_career_plan (user_career_plan_id, user_id, career_plan_id, career_plan_status, user_career_plan_created_at) VALUES (?, ?, ?, ?, ?)"
+            params = [
+                ucp.user_career_plan_id,
+                ucp.user_id,
+                ucp.career_plan_id,
+                ucp.career_plan_status,
+                ucp.user_career_plan_created_at.isoformat() if ucp.user_career_plan_created_at else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"UserCareerPlan {ucp.user_career_plan_id}")
+            else:
+                results["errors"].append(f"UserCareerPlan {ucp.user_career_plan_id}")
+
+        # Sincronizar asignaciones de cursos (CourseAssignment)
+        course_assignments = db.query(models.CourseAssignment).all()
+        for ca in course_assignments:
+            query = "INSERT INTO acd_t_course_assignment (course_assignment_id, course_id, client_id, instructor_id, assignment_status, assignment_created_at, assignment_start_date, assignment_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            params = [
+                ca.course_assignment_id,
+                ca.course_id,
+                ca.client_id,
+                ca.instructor_id,
+                ca.assignment_status,
+                ca.assignment_created_at.isoformat() if ca.assignment_created_at else None,
+                ca.assignment_start_date.isoformat() if ca.assignment_start_date else None,
+                ca.assignment_end_date.isoformat() if ca.assignment_end_date else None
+            ]
+            result = execute_turso_query(query, params)
+            if result:
+                results["success"].append(f"CourseAssignment {ca.course_assignment_id}")
+            else:
+                results["errors"].append(f"CourseAssignment {ca.course_assignment_id}")
         
         return {
-            "message": "Sincronización completada",
+            "message": "Sincronización completada - Todas las tablas incluidas",
             "details": results,
             "totals": {
                 "success": len(results["success"]),
                 "errors": len(results["errors"])
-            }
+            },
+            "tables_synced": [
+                "per_c_gender", "per_c_role", "acd_m_user_position", "per_m_person", "per_m_user",
+                "acd_m_technology", "acd_c_course_modality", "acd_m_course", "acd_m_training",
+                "acd_t_training_technology", "acd_t_user_training_assignment", "acd_t_user_training_status",
+                "acd_t_user_technology_progress", "acd_m_career_plan", "acd_t_user_career_plan",
+                "acd_t_course_assignment"
+            ]
         }
         
     except Exception as e:
@@ -1241,7 +1512,18 @@ def query_turso_data(table: str = "per_m_person"):
             "per_m_user": "SELECT * FROM per_m_user LIMIT 10", 
             "per_c_gender": "SELECT * FROM per_c_gender",
             "per_c_role": "SELECT * FROM per_c_role",
-            "acd_m_user_position": "SELECT * FROM acd_m_user_position"
+            "acd_m_user_position": "SELECT * FROM acd_m_user_position",
+            "acd_m_technology": "SELECT * FROM acd_m_technology LIMIT 10",
+            "acd_c_course_modality": "SELECT * FROM acd_c_course_modality",
+            "acd_m_course": "SELECT * FROM acd_m_course LIMIT 10",
+            "acd_m_training": "SELECT * FROM acd_m_training LIMIT 10",
+            "acd_t_training_technology": "SELECT * FROM acd_t_training_technology LIMIT 10",
+            "acd_t_user_training_assignment": "SELECT * FROM acd_t_user_training_assignment LIMIT 10",
+            "acd_t_user_training_status": "SELECT * FROM acd_t_user_training_status LIMIT 10",
+            "acd_t_user_technology_progress": "SELECT * FROM acd_t_user_technology_progress LIMIT 10",
+            "acd_m_career_plan": "SELECT * FROM acd_m_career_plan LIMIT 10",
+            "acd_t_user_career_plan": "SELECT * FROM acd_t_user_career_plan LIMIT 10",
+            "acd_t_course_assignment": "SELECT * FROM acd_t_course_assignment LIMIT 10"
         }
         
         if table not in valid_queries:
@@ -2330,6 +2612,187 @@ def get_executive_dashboard_summary(db: Session = Depends(get_db)):
         },
         "metric": "executive_dashboard"
     }
+
+# =====================================
+# POWER BI TURSO ANALYTICS ENDPOINTS
+# =====================================
+
+@app.get("/api/v1/pro/powerbi/turso/users/stats", tags=["Power BI Analytics"], summary="Estadísticas de usuarios desde Turso")
+def get_turso_users_stats():
+    """Estadísticas de usuarios consultando directamente desde Turso"""
+    try:
+        # Total usuarios
+        total_result = execute_turso_query("SELECT COUNT(*) as total FROM per_m_user WHERE user_status = 'A'")
+        total_users = total_result.get("result", {}).get("rows", [[0]])[0][0] if total_result else 0
+        
+        # Usuarios por rol
+        roles_result = execute_turso_query("""
+            SELECT r.role_name, COUNT(u.user_id) as count 
+            FROM per_c_role r 
+            LEFT JOIN per_m_user u ON r.role_id = u.user_role AND u.user_status = 'A'
+            GROUP BY r.role_name
+        """)
+        
+        roles_data = []
+        if roles_result and "result" in roles_result and "rows" in roles_result["result"]:
+            roles_data = [{"role": row[0], "count": row[1]} for row in roles_result["result"]["rows"]]
+        
+        return {
+            "total_users": total_users,
+            "users_by_role": roles_data,
+            "source": "turso",
+            "metric": "users_stats"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error consultando Turso: {str(e)}")
+
+@app.get("/api/v1/pro/powerbi/turso/trainings/progress", tags=["Power BI Analytics"], summary="Progreso de capacitaciones desde Turso")
+def get_turso_training_progress():
+    """Progreso de capacitaciones consultando directamente desde Turso"""
+    try:
+        # Promedio de progreso
+        avg_result = execute_turso_query("SELECT AVG(completion_percentage) as avg_completion FROM acd_t_user_training_assignment")
+        avg_completion = avg_result.get("result", {}).get("rows", [[0]])[0][0] if avg_result else 0
+        
+        # Estados de asignaciones
+        status_result = execute_turso_query("""
+            SELECT assignment_status, COUNT(*) as count 
+            FROM acd_t_user_training_assignment 
+            GROUP BY assignment_status
+        """)
+        
+        status_data = []
+        if status_result and "result" in status_result and "rows" in status_result["result"]:
+            status_data = [{"status": row[0], "count": row[1]} for row in status_result["result"]["rows"]]
+        
+        # Top usuarios por progreso
+        top_users_result = execute_turso_query("""
+            SELECT p.person_first_name, p.person_last_name, AVG(uta.completion_percentage) as avg_completion
+            FROM acd_t_user_training_assignment uta
+            JOIN per_m_user u ON uta.user_id = u.user_id
+            JOIN per_m_person p ON u.person_id = p.person_id
+            GROUP BY u.user_id, p.person_first_name, p.person_last_name
+            ORDER BY avg_completion DESC
+            LIMIT 10
+        """)
+        
+        top_users = []
+        if top_users_result and "result" in top_users_result and "rows" in top_users_result["result"]:
+            top_users = [
+                {"name": f"{row[0]} {row[1]}", "avg_completion": round(float(row[2]), 2)} 
+                for row in top_users_result["result"]["rows"]
+            ]
+        
+        return {
+            "average_completion": round(float(avg_completion), 2) if avg_completion else 0,
+            "status_distribution": status_data,
+            "top_performers": top_users,
+            "source": "turso",
+            "metric": "training_progress"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error consultando Turso: {str(e)}")
+
+@app.get("/api/v1/pro/powerbi/turso/technologies/analytics", tags=["Power BI Analytics"], summary="Análisis de tecnologías desde Turso")
+def get_turso_technology_analytics():
+    """Análisis de tecnologías consultando directamente desde Turso"""
+    try:
+        # Tecnologías más populares
+        popular_result = execute_turso_query("""
+            SELECT t.technology_name, COUNT(uta.assignment_id) as assignments
+            FROM acd_m_technology t
+            LEFT JOIN acd_t_training_technology tt ON t.technology_id = tt.technology_id
+            LEFT JOIN acd_m_training tr ON tt.training_id = tr.training_id
+            LEFT JOIN acd_t_user_training_assignment uta ON tr.training_id = uta.training_id
+            GROUP BY t.technology_name
+            ORDER BY assignments DESC
+        """)
+        
+        popular_techs = []
+        if popular_result and "result" in popular_result and "rows" in popular_result["result"]:
+            popular_techs = [
+                {"technology": row[0], "assignments": row[1]} 
+                for row in popular_result["result"]["rows"]
+            ]
+        
+        # Tasa de completación por tecnología
+        completion_result = execute_turso_query("""
+            SELECT t.technology_name, AVG(uta.completion_percentage) as avg_completion, COUNT(uta.assignment_id) as total
+            FROM acd_m_technology t
+            JOIN acd_t_training_technology tt ON t.technology_id = tt.technology_id
+            JOIN acd_m_training tr ON tt.training_id = tr.training_id
+            JOIN acd_t_user_training_assignment uta ON tr.training_id = uta.training_id
+            GROUP BY t.technology_name
+            HAVING COUNT(uta.assignment_id) >= 1
+            ORDER BY avg_completion DESC
+        """)
+        
+        completion_data = []
+        if completion_result and "result" in completion_result and "rows" in completion_result["result"]:
+            completion_data = [
+                {
+                    "technology": row[0], 
+                    "avg_completion": round(float(row[1]), 2),
+                    "total_assignments": row[2]
+                } 
+                for row in completion_result["result"]["rows"]
+            ]
+        
+        return {
+            "popularity_ranking": popular_techs,
+            "completion_effectiveness": completion_data,
+            "source": "turso",
+            "metric": "technology_analytics"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error consultando Turso: {str(e)}")
+
+@app.get("/api/v1/pro/powerbi/turso/summary/complete", tags=["Power BI Analytics"], summary="Resumen completo desde Turso")
+def get_turso_complete_summary():
+    """Resumen completo del sistema consultando directamente desde Turso"""
+    try:
+        # Métricas básicas
+        users_result = execute_turso_query("SELECT COUNT(*) FROM per_m_user WHERE user_status = 'A'")
+        courses_result = execute_turso_query("SELECT COUNT(*) FROM acd_m_course")
+        trainings_result = execute_turso_query("SELECT COUNT(*) FROM acd_m_training WHERE training_status = 'A'")
+        assignments_result = execute_turso_query("SELECT COUNT(*) FROM acd_t_user_training_assignment")
+        
+        total_users = users_result.get("result", {}).get("rows", [[0]])[0][0] if users_result else 0
+        total_courses = courses_result.get("result", {}).get("rows", [[0]])[0][0] if courses_result else 0
+        total_trainings = trainings_result.get("result", {}).get("rows", [[0]])[0][0] if trainings_result else 0
+        total_assignments = assignments_result.get("result", {}).get("rows", [[0]])[0][0] if assignments_result else 0
+        
+        # Usuarios activos
+        active_users_result = execute_turso_query("SELECT COUNT(DISTINCT user_id) FROM acd_t_user_training_assignment")
+        active_users = active_users_result.get("result", {}).get("rows", [[0]])[0][0] if active_users_result else 0
+        
+        # Progreso promedio
+        avg_progress_result = execute_turso_query("SELECT AVG(completion_percentage) FROM acd_t_user_training_assignment")
+        avg_progress = avg_progress_result.get("result", {}).get("rows", [[0]])[0][0] if avg_progress_result else 0
+        
+        # Asignaciones completadas
+        completed_result = execute_turso_query("SELECT COUNT(*) FROM acd_t_user_training_assignment WHERE assignment_status = 'completed'")
+        completed = completed_result.get("result", {}).get("rows", [[0]])[0][0] if completed_result else 0
+        
+        return {
+            "key_metrics": {
+                "total_users": total_users,
+                "total_courses": total_courses,
+                "total_trainings": total_trainings,
+                "total_assignments": total_assignments,
+                "active_users": active_users,
+                "engagement_rate": round((active_users / total_users * 100), 2) if total_users > 0 else 0
+            },
+            "progress_metrics": {
+                "average_completion": round(float(avg_progress), 2) if avg_progress else 0,
+                "completed_assignments": completed,
+                "completion_rate": round((completed / total_assignments * 100), 2) if total_assignments > 0 else 0
+            },
+            "source": "turso",
+            "metric": "complete_summary"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error consultando Turso: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
