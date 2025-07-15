@@ -59,6 +59,7 @@ tags_metadata = [
     {"name": "Courses", "description": "Gestión de cursos y capacitaciones"},
     {"name": "Career Plans", "description": "Gestión de planes de carrera"},
     {"name": "Catalogs", "description": "Catálogos del sistema (roles, géneros, etc.)"},
+    {"name": "Power BI Analytics", "description": "Endpoints para gráficas y análisis de Power BI"},
 ]
 
 app.openapi_tags = tags_metadata
@@ -1952,6 +1953,383 @@ def refresh_user_training_status(user_id: int, db: Session = Depends(get_db)):
     """Recalcular y actualizar estado de capacitación de un usuario"""
     status = update_user_training_status(user_id, db)
     return status
+
+# =====================================
+# POWER BI ANALYTICS ENDPOINTS
+# =====================================
+
+@app.get("/api/v1/pro/powerbi/users/total-count", tags=["Power BI Analytics"], summary="Total de usuarios registrados")
+def get_total_users_count(db: Session = Depends(get_db)):
+    """Obtener el total de usuarios registrados en el sistema"""
+    total = db.query(models.User).filter(models.User.user_status == 'A').count()
+    return {"total_users": total, "metric": "total_count"}
+
+@app.get("/api/v1/pro/powerbi/users/by-role", tags=["Power BI Analytics"], summary="Usuarios por rol")
+def get_users_by_role(db: Session = Depends(get_db)):
+    """Distribución de usuarios por rol"""
+    result = db.query(
+        models.Role.role_name,
+        func.count(models.User.user_id).label('count')
+    ).join(
+        models.User, models.Role.role_id == models.User.user_role
+    ).filter(
+        models.User.user_status == 'A'
+    ).group_by(
+        models.Role.role_name
+    ).all()
+    
+    return {
+        "data": [{"role": r.role_name, "count": r.count} for r in result],
+        "metric": "users_by_role"
+    }
+
+@app.get("/api/v1/pro/powerbi/users/by-gender", tags=["Power BI Analytics"], summary="Usuarios por género")
+def get_users_by_gender(db: Session = Depends(get_db)):
+    """Distribución de usuarios por género"""
+    result = db.query(
+        models.Gender.gender_name,
+        func.count(models.User.user_id).label('count')
+    ).join(
+        models.Person, models.Gender.gender_id == models.Person.person_gender
+    ).join(
+        models.User, models.Person.person_id == models.User.person_id
+    ).filter(
+        models.User.user_status == 'A'
+    ).group_by(
+        models.Gender.gender_name
+    ).all()
+    
+    return {
+        "data": [{"gender": r.gender_name, "count": r.count} for r in result],
+        "metric": "users_by_gender"
+    }
+
+@app.get("/api/v1/pro/powerbi/users/by-position", tags=["Power BI Analytics"], summary="Usuarios por posición")
+def get_users_by_position(db: Session = Depends(get_db)):
+    """Distribución de usuarios por posición laboral"""
+    result = db.query(
+        models.UserPosition.position_name,
+        func.count(models.User.user_id).label('count')
+    ).join(
+        models.User, models.UserPosition.user_position_id == models.User.user_position_id
+    ).filter(
+        models.User.user_status == 'A'
+    ).group_by(
+        models.UserPosition.position_name
+    ).all()
+    
+    return {
+        "data": [{"position": r.position_name, "count": r.count} for r in result],
+        "metric": "users_by_position"
+    }
+
+@app.get("/api/v1/pro/powerbi/courses/total-count", tags=["Power BI Analytics"], summary="Total de cursos disponibles")
+def get_total_courses_count(db: Session = Depends(get_db)):
+    """Obtener el total de cursos disponibles en el sistema"""
+    total = db.query(models.Course).count()
+    return {"total_courses": total, "metric": "total_count"}
+
+@app.get("/api/v1/pro/powerbi/courses/by-technology", tags=["Power BI Analytics"], summary="Cursos por tecnología")
+def get_courses_by_technology(db: Session = Depends(get_db)):
+    """Distribución de cursos por tecnología"""
+    result = db.query(
+        models.Technology.technology_name,
+        func.count(models.Course.course_id).label('count')
+    ).join(
+        models.Course, models.Technology.technology_id == models.Course.technology_id
+    ).group_by(
+        models.Technology.technology_name
+    ).all()
+    
+    return {
+        "data": [{"technology": r.technology_name, "count": r.count} for r in result],
+        "metric": "courses_by_technology"
+    }
+
+@app.get("/api/v1/pro/powerbi/courses/by-modality", tags=["Power BI Analytics"], summary="Cursos por modalidad")
+def get_courses_by_modality(db: Session = Depends(get_db)):
+    """Distribución de cursos por modalidad (presencial, virtual, etc.)"""
+    result = db.query(
+        models.CourseModality.course_modality_name,
+        func.count(models.Course.course_id).label('count')
+    ).join(
+        models.Course, models.CourseModality.course_modality_id == models.Course.course_modality_id
+    ).group_by(
+        models.CourseModality.course_modality_name
+    ).all()
+    
+    return {
+        "data": [{"modality": r.course_modality_name, "count": r.count} for r in result],
+        "metric": "courses_by_modality"
+    }
+
+@app.get("/api/v1/pro/powerbi/trainings/enrollment-stats", tags=["Power BI Analytics"], summary="Estadísticas de inscripciones a capacitaciones")
+def get_training_enrollment_stats(db: Session = Depends(get_db)):
+    """Estadísticas de usuarios inscritos en capacitaciones"""
+    # Total de usuarios con capacitaciones asignadas
+    users_with_trainings = db.query(models.UserTrainingAssignment.user_id).distinct().count()
+    
+    # Total de usuarios sin capacitaciones
+    total_users = db.query(models.User).filter(models.User.user_status == 'A').count()
+    users_without_trainings = total_users - users_with_trainings
+    
+    # Distribución por estado de capacitación
+    status_stats = db.query(
+        models.UserTrainingAssignment.assignment_status,
+        func.count(models.UserTrainingAssignment.assignment_id).label('count')
+    ).group_by(
+        models.UserTrainingAssignment.assignment_status
+    ).all()
+    
+    return {
+        "enrollment_summary": {
+            "users_with_trainings": users_with_trainings,
+            "users_without_trainings": users_without_trainings,
+            "total_users": total_users,
+            "enrollment_percentage": round((users_with_trainings / total_users * 100), 2) if total_users > 0 else 0
+        },
+        "status_distribution": [{"status": s.assignment_status, "count": s.count} for s in status_stats],
+        "metric": "enrollment_stats"
+    }
+
+@app.get("/api/v1/pro/powerbi/trainings/progress-overview", tags=["Power BI Analytics"], summary="Resumen de progreso de capacitaciones")
+def get_training_progress_overview(db: Session = Depends(get_db)):
+    """Resumen general del progreso de todas las capacitaciones"""
+    # Promedios de progreso
+    avg_progress = db.query(
+        func.avg(models.UserTrainingAssignment.completion_percentage).label('avg_completion')
+    ).scalar() or 0
+    
+    # Capacitaciones por estado general
+    overall_status_stats = db.query(
+        models.UserTrainingStatus.overall_status,
+        func.count(models.UserTrainingStatus.user_id).label('count')
+    ).group_by(
+        models.UserTrainingStatus.overall_status
+    ).all()
+    
+    # Top usuarios con mejor progreso
+    top_performers = db.query(
+        models.Person.person_first_name,
+        models.Person.person_last_name,
+        func.avg(models.UserTrainingAssignment.completion_percentage).label('avg_completion')
+    ).join(
+        models.User, models.Person.person_id == models.User.person_id
+    ).join(
+        models.UserTrainingAssignment, models.User.user_id == models.UserTrainingAssignment.user_id
+    ).group_by(
+        models.User.user_id, models.Person.person_first_name, models.Person.person_last_name
+    ).order_by(
+        func.avg(models.UserTrainingAssignment.completion_percentage).desc()
+    ).limit(10).all()
+    
+    return {
+        "overall_metrics": {
+            "average_completion_percentage": round(float(avg_progress), 2),
+            "total_active_assignments": db.query(models.UserTrainingAssignment).count()
+        },
+        "status_overview": [{"status": s.overall_status, "count": s.count} for s in overall_status_stats],
+        "top_performers": [
+            {
+                "name": f"{p.person_first_name} {p.person_last_name}",
+                "avg_completion": round(float(p.avg_completion), 2)
+            } for p in top_performers
+        ],
+        "metric": "progress_overview"
+    }
+
+@app.get("/api/v1/pro/powerbi/technologies/popularity", tags=["Power BI Analytics"], summary="Popularidad de tecnologías")
+def get_technology_popularity(db: Session = Depends(get_db)):
+    """Análisis de popularidad de tecnologías basado en capacitaciones asignadas"""
+    # Tecnologías más populares por número de asignaciones
+    popular_technologies = db.query(
+        models.Technology.technology_name,
+        func.count(models.UserTrainingAssignment.assignment_id).label('assignments_count')
+    ).join(
+        models.TrainingTechnology, models.Technology.technology_id == models.TrainingTechnology.technology_id
+    ).join(
+        models.Training, models.TrainingTechnology.training_id == models.Training.training_id
+    ).join(
+        models.UserTrainingAssignment, models.Training.training_id == models.UserTrainingAssignment.training_id
+    ).group_by(
+        models.Technology.technology_name
+    ).order_by(
+        func.count(models.UserTrainingAssignment.assignment_id).desc()
+    ).all()
+    
+    # Tecnologías con mejor tasa de completación
+    completion_rate_by_tech = db.query(
+        models.Technology.technology_name,
+        func.avg(models.UserTrainingAssignment.completion_percentage).label('avg_completion'),
+        func.count(models.UserTrainingAssignment.assignment_id).label('total_assignments')
+    ).join(
+        models.TrainingTechnology, models.Technology.technology_id == models.TrainingTechnology.technology_id
+    ).join(
+        models.Training, models.TrainingTechnology.training_id == models.Training.training_id
+    ).join(
+        models.UserTrainingAssignment, models.Training.training_id == models.UserTrainingAssignment.training_id
+    ).group_by(
+        models.Technology.technology_name
+    ).having(
+        func.count(models.UserTrainingAssignment.assignment_id) >= 3  # Solo tecnologías con al menos 3 asignaciones
+    ).order_by(
+        func.avg(models.UserTrainingAssignment.completion_percentage).desc()
+    ).all()
+    
+    return {
+        "popularity_ranking": [
+            {"technology": t.technology_name, "assignments": t.assignments_count} 
+            for t in popular_technologies
+        ],
+        "completion_effectiveness": [
+            {
+                "technology": t.technology_name, 
+                "avg_completion": round(float(t.avg_completion), 2),
+                "total_assignments": t.total_assignments
+            } 
+            for t in completion_rate_by_tech
+        ],
+        "metric": "technology_popularity"
+    }
+
+@app.get("/api/v1/pro/powerbi/instructors/performance", tags=["Power BI Analytics"], summary="Rendimiento de instructores")
+def get_instructor_performance(db: Session = Depends(get_db)):
+    """Análisis del rendimiento de instructores"""
+    instructor_stats = db.query(
+        models.Person.person_first_name,
+        models.Person.person_last_name,
+        func.count(models.UserTrainingAssignment.assignment_id).label('total_assignments'),
+        func.avg(models.UserTrainingAssignment.completion_percentage).label('avg_completion'),
+        func.count(
+            func.nullif(models.UserTrainingAssignment.assignment_status != 'completed', True)
+        ).label('completed_assignments')
+    ).join(
+        models.User, models.Person.person_id == models.User.person_id
+    ).join(
+        models.UserTrainingAssignment, models.User.user_id == models.UserTrainingAssignment.instructor_id
+    ).group_by(
+        models.User.user_id, models.Person.person_first_name, models.Person.person_last_name
+    ).having(
+        func.count(models.UserTrainingAssignment.assignment_id) >= 1
+    ).order_by(
+        func.avg(models.UserTrainingAssignment.completion_percentage).desc()
+    ).all()
+    
+    return {
+        "instructor_performance": [
+            {
+                "instructor_name": f"{s.person_first_name} {s.person_last_name}",
+                "total_assignments": s.total_assignments,
+                "avg_completion_rate": round(float(s.avg_completion), 2),
+                "completed_assignments": s.completed_assignments or 0
+            } for s in instructor_stats
+        ],
+        "metric": "instructor_performance"
+    }
+
+@app.get("/api/v1/pro/powerbi/timeline/user-registrations", tags=["Power BI Analytics"], summary="Registros de usuarios por tiempo")
+def get_user_registrations_timeline(db: Session = Depends(get_db)):
+    """Línea de tiempo de registros de usuarios"""
+    # Registros por mes
+    monthly_registrations = db.query(
+        func.DATE_FORMAT(models.User.user_created_at, '%Y-%m').label('month'),
+        func.count(models.User.user_id).label('registrations')
+    ).filter(
+        models.User.user_status == 'A'
+    ).group_by(
+        func.DATE_FORMAT(models.User.user_created_at, '%Y-%m')
+    ).order_by(
+        func.DATE_FORMAT(models.User.user_created_at, '%Y-%m').asc()
+    ).all()
+    
+    # Registros por día (últimos 30 días)
+    daily_registrations = db.query(
+        func.DATE(models.User.user_created_at).label('date'),
+        func.count(models.User.user_id).label('registrations')
+    ).filter(
+        models.User.user_status == 'A',
+        models.User.user_created_at >= func.DATE_SUB(func.NOW(), text('INTERVAL 30 DAY'))
+    ).group_by(
+        func.DATE(models.User.user_created_at)
+    ).order_by(
+        func.DATE(models.User.user_created_at).asc()
+    ).all()
+    
+    return {
+        "monthly_timeline": [
+            {"month": r.month, "registrations": r.registrations} 
+            for r in monthly_registrations
+        ],
+        "recent_daily_timeline": [
+            {"date": str(r.date), "registrations": r.registrations} 
+            for r in daily_registrations
+        ],
+        "metric": "user_registrations_timeline"
+    }
+
+@app.get("/api/v1/pro/powerbi/summary/dashboard", tags=["Power BI Analytics"], summary="Resumen ejecutivo del dashboard")
+def get_executive_dashboard_summary(db: Session = Depends(get_db)):
+    """Métricas clave para dashboard ejecutivo"""
+    # Métricas principales
+    total_users = db.query(models.User).filter(models.User.user_status == 'A').count()
+    total_courses = db.query(models.Course).count()
+    total_trainings = db.query(models.Training).filter(models.Training.training_status == 'A').count()
+    total_assignments = db.query(models.UserTrainingAssignment).count()
+    
+    # Progreso general
+    avg_completion = db.query(
+        func.avg(models.UserTrainingAssignment.completion_percentage)
+    ).scalar() or 0
+    
+    # Usuarios activos (con al menos una capacitación asignada)
+    active_users = db.query(models.UserTrainingAssignment.user_id).distinct().count()
+    
+    # Capacitaciones completadas vs en progreso
+    completed_assignments = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.assignment_status == 'completed'
+    ).count()
+    
+    in_progress_assignments = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.assignment_status == 'in_progress'
+    ).count()
+    
+    # Tecnología más popular
+    most_popular_tech = db.query(
+        models.Technology.technology_name,
+        func.count(models.UserTrainingAssignment.assignment_id).label('count')
+    ).join(
+        models.TrainingTechnology, models.Technology.technology_id == models.TrainingTechnology.technology_id
+    ).join(
+        models.Training, models.TrainingTechnology.training_id == models.Training.training_id
+    ).join(
+        models.UserTrainingAssignment, models.Training.training_id == models.UserTrainingAssignment.training_id
+    ).group_by(
+        models.Technology.technology_name
+    ).order_by(
+        func.count(models.UserTrainingAssignment.assignment_id).desc()
+    ).first()
+    
+    return {
+        "key_metrics": {
+            "total_users": total_users,
+            "total_courses": total_courses,
+            "total_trainings": total_trainings,
+            "total_assignments": total_assignments,
+            "active_users": active_users,
+            "user_engagement_rate": round((active_users / total_users * 100), 2) if total_users > 0 else 0
+        },
+        "progress_metrics": {
+            "average_completion_percentage": round(float(avg_completion), 2),
+            "completed_assignments": completed_assignments,
+            "in_progress_assignments": in_progress_assignments,
+            "pending_assignments": total_assignments - completed_assignments - in_progress_assignments
+        },
+        "insights": {
+            "most_popular_technology": most_popular_tech.technology_name if most_popular_tech else "N/A",
+            "completion_rate": round((completed_assignments / total_assignments * 100), 2) if total_assignments > 0 else 0
+        },
+        "metric": "executive_dashboard"
+    }
 
 if __name__ == "__main__":
     import uvicorn
