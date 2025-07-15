@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from typing import List
-from datetime import datetime
+from datetime import datetime, time
 import models
 import schemas
 from database import engine, get_db
@@ -72,6 +72,125 @@ def read_root():
         "version": "1.0.0",
         "docs": "/docs"
     }
+
+@app.get("/api/v1/system/getEverythingTurso", tags=["System"], summary="Obtener toda la información de Turso")
+def get_everything_turso():
+    """Obtener todos los datos de todas las tablas de Turso de manera organizada"""
+    try:
+        result = {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "data": {},
+            "summary": {}
+        }
+        
+        # Lista de todas las tablas con sus descripciones
+        tables_info = {
+            "per_c_gender": {"description": "Catálogo de géneros", "limit": None},
+            "per_c_role": {"description": "Catálogo de roles", "limit": None},
+            "acd_m_user_position": {"description": "Posiciones de usuarios", "limit": None},
+            "per_m_person": {"description": "Datos personales", "limit": 20},
+            "per_m_user": {"description": "Usuarios del sistema", "limit": 20},
+            "acd_m_technology": {"description": "Tecnologías disponibles", "limit": 30},
+            "acd_c_course_modality": {"description": "Modalidades de cursos", "limit": None},
+            "acd_m_course": {"description": "Cursos disponibles", "limit": 10},
+            "acd_m_training": {"description": "Capacitaciones", "limit": 20},
+            "acd_t_training_technology": {"description": "Relaciones capacitación-tecnología", "limit": 30},
+            "acd_t_user_training_assignment": {"description": "Asignaciones de capacitación", "limit": 15},
+            "acd_t_user_training_status": {"description": "Estados de capacitación por usuario", "limit": 15},
+            "acd_t_user_technology_progress": {"description": "Progreso por tecnología", "limit": 25},
+            "acd_m_career_plan": {"description": "Planes de carrera", "limit": 10},
+            "acd_t_user_career_plan": {"description": "Asignaciones de planes de carrera", "limit": 15},
+            "acd_t_course_assignment": {"description": "Asignaciones de cursos", "limit": 15}
+        }
+        
+        # Función helper para procesar resultados de Turso
+        def process_turso_result(turso_result):
+            processed_data = []
+            if turso_result and "results" in turso_result:
+                for result_item in turso_result["results"]:
+                    if result_item["type"] == "ok" and "response" in result_item:
+                        response = result_item["response"]
+                        if response["type"] == "execute" and "result" in response:
+                            rows = response["result"].get("rows", [])
+                            cols = response["result"].get("cols", [])
+                            
+                            # Convertir filas a diccionarios
+                            for row in rows:
+                                row_dict = {}
+                                for i, col in enumerate(cols):
+                                    if i < len(row):
+                                        value = row[i]["value"] if row[i]["type"] != "null" else None
+                                        row_dict[col["name"]] = value
+                                processed_data.append(row_dict)
+            return processed_data
+        
+        # Obtener datos de cada tabla
+        for table_name, table_info in tables_info.items():
+            try:
+                # Construir query con o sin LIMIT
+                if table_info["limit"]:
+                    query = f"SELECT * FROM {table_name} LIMIT {table_info['limit']}"
+                else:
+                    query = f"SELECT * FROM {table_name}"
+                
+                # Ejecutar query
+                turso_result = execute_turso_query(query)
+                processed_data = process_turso_result(turso_result)
+                
+                # Agregar a resultado
+                result["data"][table_name] = {
+                    "description": table_info["description"],
+                    "count": len(processed_data),
+                    "data": processed_data,
+                    "limited": table_info["limit"] is not None,
+                    "limit_applied": table_info["limit"]
+                }
+                
+                # Agregar al resumen
+                result["summary"][table_name] = {
+                    "description": table_info["description"],
+                    "records_returned": len(processed_data),
+                    "limited": table_info["limit"] is not None
+                }
+                
+            except Exception as table_error:
+                result["data"][table_name] = {
+                    "description": table_info["description"],
+                    "error": str(table_error),
+                    "count": 0,
+                    "data": []
+                }
+                result["summary"][table_name] = {
+                    "description": table_info["description"],
+                    "error": str(table_error),
+                    "records_returned": 0
+                }
+        
+        # Estadísticas generales
+        total_records = sum(table["count"] for table in result["data"].values() if "count" in table)
+        tables_with_data = sum(1 for table in result["data"].values() if table.get("count", 0) > 0)
+        tables_with_errors = sum(1 for table in result["data"].values() if "error" in table)
+        
+        result["general_stats"] = {
+            "total_tables_queried": len(tables_info),
+            "tables_with_data": tables_with_data,
+            "tables_with_errors": tables_with_errors,
+            "total_records_returned": total_records,
+            "query_timestamp": datetime.now().isoformat()
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "data": {},
+            "summary": {},
+            "general_stats": {}
+        }
 
 # SETUP ENDPOINT - Para crear datos iniciales
 @app.post("/setup", tags=["System"], summary="Configuración inicial")
@@ -881,7 +1000,7 @@ def create_test_data_for_powerbi(db: Session = Depends(get_db)):
             models.Course(
                 course_name="Fundamentos de Python",
                 course_link="https://example.com/python",
-                course_duration=time(40, 0),  # 40 horas
+                course_duration=time(8, 0),  # 8 horas (40 horas académicas = ~8 horas reales)
                 technology_id=1,
                 course_modality_id=1,
                 course_credentials="Certificado de Programación Python"
@@ -889,7 +1008,7 @@ def create_test_data_for_powerbi(db: Session = Depends(get_db)):
             models.Course(
                 course_name="JavaScript Avanzado",
                 course_link="https://example.com/javascript",
-                course_duration=time(30, 0),  # 30 horas
+                course_duration=time(6, 0),  # 6 horas (30 horas académicas = ~6 horas reales)
                 technology_id=2,
                 course_modality_id=2,
                 course_credentials="Certificado JavaScript"
@@ -897,7 +1016,7 @@ def create_test_data_for_powerbi(db: Session = Depends(get_db)):
             models.Course(
                 course_name="Power BI para Analistas",
                 course_link="https://example.com/powerbi",
-                course_duration=time(20, 0),  # 20 horas
+                course_duration=time(4, 0),  # 4 horas (20 horas académicas = ~4 horas reales)
                 technology_id=5,
                 course_modality_id=3,
                 course_credentials="Certificado Power BI"
