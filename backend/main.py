@@ -2311,21 +2311,108 @@ def get_total_courses_count(db: Session = Depends(get_db)):
     total = db.query(models.Course).count()
     return {"total_courses": total, "metric": "total_count"}
 
-@app.get("/api/v1/pro/powerbi/courses/by-technology", tags=["Power BI Analytics"], summary="Cursos por tecnología")
-def get_courses_by_technology(db: Session = Depends(get_db)):
-    """Distribución de cursos por tecnología"""
-    result = db.query(
-        models.Technology.technology_name,
-        func.count(models.Course.course_id).label('count')
-    ).join(
-        models.Course, models.Technology.technology_id == models.Course.technology_id
-    ).group_by(
-        models.Technology.technology_name
-    ).all()
+@app.get("/api/v1/pro/powerbi/courses/by-technology", tags=["Power BI Analytics"], summary="Capacitaciones por tecnología")
+def get_courses_by_technology(db: Session = Depends(get_db), use_turso: bool = False, show_all_technologies: bool = False):
+    """Distribución de capacitaciones por tecnología - Con fallback a Turso si MySQL está vacío"""
+    
+    if use_turso:
+        # Consultar directamente desde Turso
+        try:
+            query = """
+                SELECT t.technology_name, COUNT(tt.training_id) as count
+                FROM acd_m_technology t
+                LEFT JOIN acd_t_training_technology tt ON t.technology_id = tt.technology_id
+                GROUP BY t.technology_name
+                ORDER BY count DESC
+            """
+            
+            turso_result = execute_turso_query(query)
+            
+            data = []
+            if turso_result and "results" in turso_result:
+                for result_item in turso_result["results"]:
+                    if result_item["type"] == "ok" and "response" in result_item:
+                        response = result_item["response"]
+                        if response["type"] == "execute" and "result" in response:
+                            rows = response["result"].get("rows", [])
+                            for row in rows:
+                                tech_name = row[0]["value"] if row[0]["type"] != "null" else "Unknown"
+                                count = row[1]["value"] if row[1]["type"] != "null" else 0
+                                data.append({"technology": tech_name, "count": count})
+            
+            return {
+                "data": data,
+                "metric": "courses_by_technology",
+                "source": "turso"
+            }
+        except Exception as e:
+            return {
+                "data": [],
+                "metric": "courses_by_technology",
+                "source": "turso",
+                "error": str(e)
+            }
+    
+    # Consulta MySQL normal
+    if show_all_technologies:
+        # Mostrar todas las tecnologías, incluso con 0 cursos
+        result = db.query(
+            models.Technology.technology_name,
+            func.coalesce(func.count(models.Course.course_id), 0).label('count')
+        ).outerjoin(
+            models.Course, models.Technology.technology_id == models.Course.technology_id
+        ).group_by(
+            models.Technology.technology_name
+        ).all()
+    else:
+        # Solo tecnologías con cursos
+        result = db.query(
+            models.Technology.technology_name,
+            func.count(models.Course.course_id).label('count')
+        ).join(
+            models.Course, models.Technology.technology_id == models.Course.technology_id
+        ).group_by(
+            models.Technology.technology_name
+        ).all()
+    
+    mysql_data = [{"technology": r.technology_name, "count": r.count} for r in result]
+    
+    # Si MySQL está vacío, intentar con Turso automáticamente
+    if not mysql_data:
+        try:
+            query = """
+                SELECT t.technology_name, COUNT(tt.training_id) as count
+                FROM acd_m_technology t
+                LEFT JOIN acd_t_training_technology tt ON t.technology_id = tt.technology_id
+                GROUP BY t.technology_name
+                ORDER BY count DESC
+            """
+            
+            turso_result = execute_turso_query(query)
+            
+            if turso_result and "results" in turso_result:
+                for result_item in turso_result["results"]:
+                    if result_item["type"] == "ok" and "response" in result_item:
+                        response = result_item["response"]
+                        if response["type"] == "execute" and "result" in response:
+                            rows = response["result"].get("rows", [])
+                            for row in rows:
+                                tech_name = row[0]["value"] if row[0]["type"] != "null" else "Unknown"
+                                count = row[1]["value"] if row[1]["type"] != "null" else 0
+                                mysql_data.append({"technology": tech_name, "count": count})
+                
+            return {
+                "data": mysql_data,
+                "metric": "courses_by_technology",
+                "source": "turso_fallback"
+            }
+        except Exception:
+            pass
     
     return {
-        "data": [{"technology": r.technology_name, "count": r.count} for r in result],
-        "metric": "courses_by_technology"
+        "data": mysql_data,
+        "metric": "courses_by_technology",
+        "source": "mysql"
     }
 
 @app.get("/api/v1/pro/powerbi/courses/by-modality", tags=["Power BI Analytics"], summary="Cursos por modalidad")
@@ -2421,8 +2508,22 @@ def get_training_progress_overview(db: Session = Depends(get_db)):
     }
 
 @app.get("/api/v1/pro/powerbi/technologies/popularity", tags=["Power BI Analytics"], summary="Popularidad de tecnologías")
-def get_technology_popularity(db: Session = Depends(get_db)):
-    """Análisis de popularidad de tecnologías basado en capacitaciones asignadas"""
+def get_technology_popularity(db: Session = Depends(get_db), use_turso: bool = False):
+    """Análisis de popularidad de tecnologías basado en capacitaciones asignadas - Con fallback a Turso"""
+    
+    if use_turso:
+        # Consultar directamente desde Turso
+        try:
+            return get_turso_technology_analytics()
+        except Exception as e:
+            return {
+                "popularity_ranking": [],
+                "completion_effectiveness": [],
+                "metric": "technology_popularity",
+                "source": "turso",
+                "error": str(e)
+            }
+    
     # Tecnologías más populares por número de asignaciones
     popular_technologies = db.query(
         models.Technology.technology_name,
@@ -2458,20 +2559,32 @@ def get_technology_popularity(db: Session = Depends(get_db)):
         func.avg(models.UserTrainingAssignment.completion_percentage).desc()
     ).all()
     
+    popularity_data = [
+        {"technology": t.technology_name, "assignments": t.assignments_count} 
+        for t in popular_technologies
+    ]
+    
+    completion_data = [
+        {
+            "technology": t.technology_name, 
+            "avg_completion": round(float(t.avg_completion), 2),
+            "total_assignments": t.total_assignments
+        } 
+        for t in completion_rate_by_tech
+    ]
+    
+    # Si MySQL está vacío, intentar con Turso automáticamente
+    if not popularity_data and not completion_data:
+        try:
+            return get_turso_technology_analytics()
+        except Exception:
+            pass
+    
     return {
-        "popularity_ranking": [
-            {"technology": t.technology_name, "assignments": t.assignments_count} 
-            for t in popular_technologies
-        ],
-        "completion_effectiveness": [
-            {
-                "technology": t.technology_name, 
-                "avg_completion": round(float(t.avg_completion), 2),
-                "total_assignments": t.total_assignments
-            } 
-            for t in completion_rate_by_tech
-        ],
-        "metric": "technology_popularity"
+        "popularity_ranking": popularity_data,
+        "completion_effectiveness": completion_data,
+        "metric": "technology_popularity",
+        "source": "mysql" if (popularity_data or completion_data) else "empty"
     }
 
 @app.get("/api/v1/pro/powerbi/instructors/performance", tags=["Power BI Analytics"], summary="Rendimiento de instructores")
@@ -2793,6 +2906,73 @@ def get_turso_complete_summary():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error consultando Turso: {str(e)}")
+
+@app.get("/api/v1/pro/powerbi/technologies/available", tags=["Power BI Analytics"], summary="Todas las tecnologías disponibles")
+def get_available_technologies(db: Session = Depends(get_db), use_turso: bool = False):
+    """Lista de todas las tecnologías disponibles en el sistema"""
+    
+    if use_turso:
+        try:
+            turso_result = execute_turso_query("""
+                SELECT technology_name, 0 as count
+                FROM acd_m_technology
+                ORDER BY technology_name
+            """)
+            
+            data = []
+            if turso_result and "results" in turso_result:
+                for result_item in turso_result["results"]:
+                    if result_item["type"] == "ok" and "response" in result_item:
+                        response = result_item["response"]
+                        if response["type"] == "execute" and "result" in response:
+                            rows = response["result"].get("rows", [])
+                            for row in rows:
+                                tech_name = row[0]["value"] if row[0]["type"] != "null" else "Unknown"
+                                count = row[1]["value"] if row[1]["type"] != "null" else 0
+                                data.append({"technology": tech_name, "count": count})
+            
+            return {
+                "data": data,
+                "metric": "technologies_available",
+                "source": "turso"
+            }
+        except Exception as e:
+            return {
+                "data": [],
+                "metric": "technologies_available", 
+                "source": "turso",
+                "error": str(e)
+            }
+    
+    # Consulta MySQL
+    result = db.query(models.Technology.technology_name).all()
+    mysql_data = [{"technology": r.technology_name, "count": 0} for r in result]
+    
+    # Si MySQL está vacío, usar Turso
+    if not mysql_data:
+        try:
+            turso_result = execute_turso_query("""
+                SELECT technology_name, 0 as count
+                FROM acd_m_technology
+                ORDER BY technology_name
+            """)
+            
+            if turso_result and "result" in turso_result and "rows" in turso_result["result"]:
+                mysql_data = [{"technology": row[0]["value"], "count": row[1]["value"]} for row in turso_result["result"]["rows"]]
+            
+            return {
+                "data": mysql_data,
+                "metric": "technologies_available",
+                "source": "turso_fallback"
+            }
+        except Exception:
+            pass
+    
+    return {
+        "data": mysql_data,
+        "metric": "technologies_available",
+        "source": "mysql"
+    }
 
 if __name__ == "__main__":
     import uvicorn
