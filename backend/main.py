@@ -7,6 +7,10 @@ import requests
 import asyncio
 from typing import Dict, Any
 import schemas
+import random
+from datetime import datetime, timedelta, time
+
+
 from database import engine, get_db
 import warnings
 from passlib.context import CryptContext
@@ -26,6 +30,15 @@ import requests
 import asyncio
 from typing import Dict, Any
 from datetime import datetime
+
+
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from io import BytesIO
+import pandas as pd
+from datetime import datetime
+
 # Suprimir warning de bcrypt
 warnings.filterwarnings("ignore", category=UserWarning, module="passlib")
 
@@ -3093,6 +3106,796 @@ def get_available_technologies(db: Session = Depends(get_db), use_turso: bool = 
         "source": "mysql"
     }
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+from faker import Faker # You'll need to add 'Faker' to your requirements.txt
+
+# Assuming these are defined elsewhere in your application
+# from . import models # Your SQLAlchemy models
+# from .database import get_db # Your database session dependency for SQLAlchemy (if needed for MySQL fallback)
+# from .turso_client import execute_turso_query # Your Turso client function
+
+# Mocks for demonstration purposes. Replace with your actual imports.
+# In a real application, you'd import your actual Turso client and SQLAlchemy models.
+class MockTursoResult:
+    def __init__(self, rows=None, columns=None):
+        self.rows = rows if rows is not None else []
+        self.columns = columns if columns is not None else []
+    
+    def get(self, key, default=None):
+        if key == "result":
+            return {"rows": self.rows, "columns": self.columns}
+        return default
+
+# Mock execute_turso_query for demonstration. REPLACE THIS WITH YOUR REAL FUNCTION.
+# Your actual execute_turso_query should handle insertions and return query results.
+_mock_turso_data = {
+    "per_c_gender": [],
+    "per_c_role": [],
+    "acd_m_user_position": [],
+    "per_m_person": [],
+    "per_m_user": [],
+    "acd_m_technology": [],
+    "acd_c_course_modality": [],
+    "acd_c_course_type": [],
+    "acd_m_course": [],
+    "acd_m_career_plan": [],
+    "acd_t_user_career_plan": [],
+    "acd_t_course_assignment": [],
+    "acd_m_training": [],
+    "acd_t_training_technology": [],
+    "acd_t_user_training_assignment": [],
+    "acd_t_user_technology_progress": [],
+    "acd_t_user_training_status": []
+}
+
+_mock_turso_id_counters = {
+    "gender_id": 1, "role_id": 1, "user_position_id": 1, "person_id": 1, "user_id": 1,
+    "technology_id": 1, "course_modality_id": 1, "course_type_id": 1, "course_id": 1,
+    "career_plan_id": 1, "user_career_plan_id": 1, "course_assignment_id": 1,
+    "training_id": 1, "training_technology_id": 1, "assignment_id": 1,
+    "progress_id": 1, "status_id": 1
+}
+
+async def execute_turso_query(query: str, params: list = None):
+    print(f"Executing Turso query: {query} with params: {params}")
+    # This is a very simplified mock. Your actual function would interact with Turso.
+    query_lower = query.lower()
+
+    if query_lower.startswith("insert"):
+        table_name = query_lower.split("into")[1].strip().split(" ")[0].strip()
+        _mock_turso_data.setdefault(table_name, []).append(params)
+        print(f"Mock inserted into {table_name}: {params}")
+        return {"result": {"rows_affected": 1}} # Simulate success
+    elif query_lower.startswith("select count"):
+        table_name = query_lower.split("from")[1].strip().split(" ")[0].strip()
+        count = len(_mock_turso_data.get(table_name, []))
+        return {"result": {"rows": [[count]], "columns": [{"name": "count"}]}}
+    elif query_lower.startswith("select"):
+        table_name = query_lower.split("from")[1].strip().split(" ")[0].strip()
+        data = _mock_turso_data.get(table_name, [])
+        # Very crude parsing to get column names from insert statements or just use "col1", "col2"
+        mock_columns = []
+        if data:
+            # Assuming params for insert match column order
+            first_insert = data[0]
+            mock_columns = [f"col{i+1}" for i in range(len(first_insert))]
+            
+            # Try to infer columns from known tables if they match your model structure
+            if table_name == "per_c_gender": mock_columns = ["gender_id", "gender_name", "gender_status", "gender_created_at"]
+            elif table_name == "per_c_role": mock_columns = ["role_id", "role_name", "role_description", "role_status", "role_created_at"]
+            elif table_name == "per_m_person": mock_columns = ["person_id", "person_dni", "person_first_name", "person_last_name", "person_gender", "person_email", "person_status", "person_created_at"]
+            elif table_name == "per_m_user_position": mock_columns = ["user_position_id", "position_name", "position_status", "user_position_created_at"]
+            elif table_name == "per_m_user": mock_columns = ["user_id", "user_username", "user_password", "person_id", "user_role", "user_position_id", "user_status", "user_created_at"]
+            elif table_name == "acd_m_technology": mock_columns = ["technology_id", "technology_name", "technology_created_at"]
+            elif table_name == "acd_c_course_modality": mock_columns = ["course_modality_id", "course_modality_name", "course_modality_created_at"]
+            elif table_name == "acd_c_course_type": mock_columns = ["course_type_id", "course_type_name", "course_type_created_at"]
+            elif table_name == "acd_m_course": mock_columns = ["course_id", "course_name", "course_link", "course_duration", "technology_id", "course_modality_id", "course_credentials", "course_created_at"]
+            elif table_name == "acd_m_career_plan": mock_columns = ["career_plan_id", "course_id"]
+            elif table_name == "acd_t_user_career_plan": mock_columns = ["user_career_plan_id", "user_id", "career_plan_id", "career_plan_status", "user_career_plan_created_at"]
+            elif table_name == "acd_t_course_assignment": mock_columns = ["course_assignment_id", "course_id", "client_id", "instructor_id", "assignment_status", "assignment_created_at", "assignment_start_date", "assignment_end_date"]
+            elif table_name == "acd_m_training": mock_columns = ["training_id", "training_name", "training_description", "training_status", "training_created_at"]
+            elif table_name == "acd_t_training_technology": mock_columns = ["training_technology_id", "training_id", "technology_id", "created_at"]
+            elif table_name == "acd_t_user_training_assignment": mock_columns = ["assignment_id", "user_id", "training_id", "instructor_id", "assignment_status", "assignment_created_at", "completion_percentage", "instructor_meeting_link"]
+            elif table_name == "acd_t_user_technology_progress": mock_columns = ["progress_id", "assignment_id", "technology_id", "is_completed", "completed_at", "created_at"]
+            elif table_name == "acd_t_user_training_status": mock_columns = ["status_id", "user_id", "total_trainings_assigned", "trainings_completed", "trainings_in_progress", "overall_status", "last_updated", "created_at"]
+
+        # Simulate WHERE clause for exact matches if needed
+        if "where" in query_lower and params:
+            # This is a very simplistic WHERE clause simulation.
+            # In a real scenario, you'd parse the WHERE clause properly.
+            filter_col = query_lower.split("where")[1].strip().split("=")[0].strip()
+            filter_val = params[0] if params else None # Assuming single param for simplicity
+            
+            col_index = -1
+            if filter_col in mock_columns:
+                col_index = mock_columns.index(filter_col)
+            
+            if col_index != -1:
+                filtered_data = [row for row in data if row[col_index] == filter_val]
+                return {"result": {"rows": filtered_data, "columns": [{"name": col} for col in mock_columns]}}
+        
+        return {"result": {"rows": data, "columns": [{"name": col} for col in mock_columns]}}
+    
+    return {"result": {"rows": [], "columns": []}} # Default empty response
+
+# Re-using the download function from before (ensure it's in your actual app)
+async def download_all_turso_tables_xlsx():
+    """
+    Downloads all configured tables from Turso into a single XLSX file,
+    with each table on a different sheet.
+    """
+    tables_info = {
+        "per_c_gender": {"description": "Catálogo de géneros", "limit": None},
+        "per_c_role": {"description": "Catálogo de roles", "limit": None},
+        "acd_m_user_position": {"description": "Posiciones de usuarios", "limit": None},
+        "per_m_person": {"description": "Datos personales", "limit": 200}, # Increased limit
+        "per_m_user": {"description": "Usuarios del sistema", "limit": 200}, # Increased limit
+        "acd_m_technology": {"description": "Tecnologías disponibles", "limit": None},
+        "acd_c_course_modality": {"description": "Modalidades de cursos", "limit": None},
+        "acd_c_course_type": {"description": "Tipos de cursos", "limit": None}, # Added this
+        "acd_m_course": {"description": "Cursos disponibles", "limit": 100}, # Increased limit
+        "acd_m_training": {"description": "Capacitaciones", "limit": 100}, # Increased limit
+        "acd_t_training_technology": {"description": "Relaciones capacitación-tecnología", "limit": None},
+        "acd_t_user_training_assignment": {"description": "Asignaciones de capacitación", "limit": 500}, # Increased limit
+        "acd_t_user_technology_progress": {"description": "Progreso por tecnología", "limit": 500}, # Increased limit
+        "acd_m_career_plan": {"description": "Planes de carrera", "limit": 50}, # Increased limit
+        "acd_t_user_career_plan": {"description": "Asignaciones de planes de carrera", "limit": 100}, # Increased limit
+        "acd_t_course_assignment": {"description": "Asignaciones de cursos", "limit": 500} # Increased limit
+    }
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        for table_name, info in tables_info.items():
+            query = f"SELECT * FROM {table_name}"
+            if info["limit"]:
+                query += f" LIMIT {info['limit']}"
+
+            turso_response = await execute_turso_query(query) # Use await here!
+            
+            rows = []
+            columns = []
+
+            if turso_response and "result" in turso_response and "rows" in turso_response["result"]:
+                raw_rows = turso_response["result"]["rows"]
+                raw_columns = turso_response["result"].get("columns", [])
+
+                # Extract column names, handling potential lack of "name" key
+                columns = [col.get("name") if isinstance(col, dict) else col for col in raw_columns]
+                
+                # Extract values from rows, handling different data types and structures
+                for row in raw_rows:
+                    processed_row = []
+                    for item in row:
+                        if isinstance(item, dict) and "value" in item:
+                            processed_row.append(item["value"])
+                        else:
+                            processed_row.append(item)
+                    rows.append(processed_row)
+            
+            # Create DataFrame even if no data, to ensure a sheet is created
+            df = pd.DataFrame(rows, columns=columns)
+            # Ensure sheet name is valid (max 31 characters)
+            sheet_name = table_name
+            if len(sheet_name) > 31:
+                sheet_name = sheet_name[:28] + "..." # Truncate and add ellipsis
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    output.seek(0)
+    
+    filename = f"turso_generated_data_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    headers = {
+        "Content-Disposition": f"attachment; filename={filename}",
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    }
+    
+    return StreamingResponse(output, headers=headers)
+
+
+# Initialize FastAPI app (assuming it's already initialized in main.py)
+# app = FastAPI(...) # Your existing FastAPI app initialization
+
+fake = Faker('es_ES') # For Spanish names and other localized data
+
+# --- Helper functions for data insertion ---
+
+async def insert_gender_data():
+    genders = [("Masculino", 'A'), ("Femenino", 'A'), ("Otro", 'A')]
+    gender_ids = []
+    for i, (name, status) in enumerate(genders):
+        gender_id = _mock_turso_id_counters["gender_id"] # Use mock counter
+        _mock_turso_id_counters["gender_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO per_c_gender (gender_id, gender_name, gender_status, gender_created_at) VALUES (?, ?, ?, ?)",
+            [gender_id, name, status, datetime.utcnow().isoformat()]
+        )
+        gender_ids.append(gender_id)
+    return gender_ids
+
+async def insert_role_data():
+    roles = [
+        ("Administrador", "Acceso completo al sistema", 'A'),
+        ("Cliente", "Acceso a sus planes de carrera y capacitaciones", 'A'),
+        ("Instructor", "Gestiona capacitaciones asignadas", 'A'),
+        ("Supervisor", "Supervisa el progreso de equipos", 'A')
+    ]
+    role_ids = {}
+    for i, (name, description, status) in enumerate(roles):
+        role_id = _mock_turso_id_counters["role_id"]
+        _mock_turso_id_counters["role_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO per_c_role (role_id, role_name, role_description, role_status, role_created_at) VALUES (?, ?, ?, ?, ?)",
+            [role_id, name, description, status, datetime.utcnow().isoformat()]
+        )
+        role_ids[name] = role_id
+    return role_ids
+
+async def insert_user_position_data():
+    positions = [
+        ("Desarrollador Backend", 'A'), ("Desarrollador Frontend", 'A'),
+        ("Arquitecto Cloud", 'A'), ("Analista QA", 'A'),
+        ("Scrum Master", 'A'), ("Diseñador UI/UX", 'A')
+    ]
+    position_ids = []
+    for i, (name, status) in enumerate(positions):
+        position_id = _mock_turso_id_counters["user_position_id"]
+        _mock_turso_id_counters["user_position_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_m_user_position (user_position_id, position_name, position_status, user_position_created_at) VALUES (?, ?, ?, ?)",
+            [position_id, name, status, datetime.utcnow().isoformat()]
+        )
+        position_ids.append(position_id)
+    return position_ids
+
+async def insert_person_and_user_data(gender_ids: list, role_ids: dict, position_ids: list, num_clients: int, num_instructors: int):
+    client_role_id = role_ids["Cliente"]
+    instructor_role_id = role_ids["Instructor"]
+    admin_role_id = role_ids["Administrador"]
+    
+    person_ids = []
+    user_ids = []
+    instructor_user_ids = []
+
+    # Admin User
+    person_id = _mock_turso_id_counters["person_id"]
+    _mock_turso_id_counters["person_id"] += 1
+    await execute_turso_query(
+        "INSERT INTO per_m_person (person_id, person_dni, person_first_name, person_last_name, person_gender, person_email, person_status, person_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [person_id, fake.unique.random_int(min=100000000, max=999999999), "Admin", "User", random.choice(gender_ids), "admin@example.com", 'A', datetime.utcnow().isoformat()]
+    )
+    user_id = _mock_turso_id_counters["user_id"]
+    _mock_turso_id_counters["user_id"] += 1
+    await execute_turso_query(
+        "INSERT INTO per_m_user (user_id, user_username, user_password, person_id, user_role, user_position_id, user_status, user_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [user_id, "admin", "hashed_password", person_id, admin_role_id, random.choice(position_ids), 'A', datetime.utcnow().isoformat()]
+    )
+    person_ids.append(person_id)
+    user_ids.append(user_id)
+
+    # Clients
+    for _ in range(num_clients):
+        person_id = _mock_turso_id_counters["person_id"]
+        _mock_turso_id_counters["person_id"] += 1
+        first_name = fake.first_name()
+        last_name = fake.last_name()
+        email = fake.unique.email()
+        await execute_turso_query(
+            "INSERT INTO per_m_person (person_id, person_dni, person_first_name, person_last_name, person_gender, person_email, person_status, person_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [person_id, fake.unique.random_int(min=100000000, max=999999999), first_name, last_name, random.choice(gender_ids), email, 'A', datetime.utcnow().isoformat()]
+        )
+        person_ids.append(person_id)
+
+        user_id = _mock_turso_id_counters["user_id"]
+        _mock_turso_id_counters["user_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO per_m_user (user_id, user_username, user_password, person_id, user_role, user_position_id, user_status, user_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [user_id, email.split('@')[0], "hashed_password", person_id, client_role_id, random.choice(position_ids), 'A', datetime.utcnow().isoformat()]
+        )
+        user_ids.append(user_id)
+    
+    # Instructors
+    for _ in range(num_instructors):
+        person_id = _mock_turso_id_counters["person_id"]
+        _mock_turso_id_counters["person_id"] += 1
+        first_name = fake.first_name()
+        last_name = fake.last_name()
+        email = fake.unique.email()
+        await execute_turso_query(
+            "INSERT INTO per_m_person (person_id, person_dni, person_first_name, person_last_name, person_gender, person_email, person_status, person_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [person_id, fake.unique.random_int(min=100000000, max=999999999), first_name, last_name, random.choice(gender_ids), email, 'A', datetime.utcnow().isoformat()]
+        )
+        person_ids.append(person_id)
+
+        user_id = _mock_turso_id_counters["user_id"]
+        _mock_turso_id_counters["user_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO per_m_user (user_id, user_username, user_password, person_id, user_role, user_position_id, user_status, user_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [user_id, f"inst_{email.split('@')[0]}", "hashed_password", person_id, instructor_role_id, random.choice(position_ids), 'A', datetime.utcnow().isoformat()]
+        )
+        user_ids.append(user_id)
+        instructor_user_ids.append(user_id)
+
+    return user_ids, instructor_user_ids
+
+async def insert_technology_data(technologies_list: list):
+    technology_ids = {}
+    for tech_name in technologies_list:
+        tech_id = _mock_turso_id_counters["technology_id"]
+        _mock_turso_id_counters["technology_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_m_technology (technology_id, technology_name, technology_created_at) VALUES (?, ?, ?)",
+            [tech_id, tech_name, datetime.utcnow().isoformat()]
+        )
+        technology_ids[tech_name] = tech_id
+    return technology_ids
+
+async def insert_course_modality_data():
+    modalities = [("Presencial", 'A'), ("Virtual", 'A')]
+    modality_ids = {}
+    for name, status in modalities:
+        modality_id = _mock_turso_id_counters["course_modality_id"]
+        _mock_turso_id_counters["course_modality_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_c_course_modality (course_modality_id, course_modality_name, course_modality_created_at) VALUES (?, ?, ?)",
+            [modality_id, name, datetime.utcnow().isoformat()]
+        )
+        modality_ids[name] = modality_id
+    return modality_ids
+
+async def insert_course_type_data():
+    # Adding a default course type as it's in your models but not specified in prompt
+    course_types = [("Teórico", 'A'), ("Práctico", 'A'), ("Mixto", 'A')]
+    course_type_ids = {}
+    for name, status in course_types:
+        course_type_id = _mock_turso_id_counters["course_type_id"]
+        _mock_turso_id_counters["course_type_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_c_course_type (course_type_id, course_type_name, course_type_created_at) VALUES (?, ?, ?)",
+            [course_type_id, name, datetime.utcnow().isoformat()]
+        )
+        course_type_ids[name] = course_type_id
+    return course_type_ids
+
+async def insert_training_and_related_data(trainings_list: list, technology_ids: dict):
+    training_ids = {}
+    for training_info in trainings_list:
+        training_id = _mock_turso_id_counters["training_id"]
+        _mock_turso_id_counters["training_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_m_training (training_id, training_name, training_description, training_status, training_created_at) VALUES (?, ?, ?, ?, ?)",
+            [training_id, training_info["name"], training_info["description"], 'A', datetime.utcnow().isoformat()]
+        )
+        training_ids[training_info["name"]] = training_id
+
+        for tech_name in training_info["technologies"]:
+            if tech_name in technology_ids:
+                training_technology_id = _mock_turso_id_counters["training_technology_id"]
+                _mock_turso_id_counters["training_technology_id"] += 1
+                await execute_turso_query(
+                    "INSERT INTO acd_t_training_technology (training_technology_id, training_id, technology_id, created_at) VALUES (?, ?, ?, ?)",
+                    [training_technology_id, training_id, technology_ids[tech_name], datetime.utcnow().isoformat()]
+                )
+    return training_ids
+
+async def insert_course_data(technology_ids: dict, modality_ids: dict):
+    # Generating generic courses based on technologies, and then some specific ones
+    courses_to_generate = []
+    
+    # Generate some courses based on technologies
+    for tech_name, tech_id in technology_ids.items():
+        courses_to_generate.append({
+            "name": f"Introducción a {tech_name}",
+            "link": fake.url(),
+            "duration": time(hour=random.randint(1, 8), minute=random.choice([0, 30])),
+            "technology_id": tech_id,
+            "modality_id": random.choice(list(modality_ids.values())),
+            "credentials": f"Certificación {tech_name} Nivel 1" if random.random() < 0.3 else ""
+        })
+    
+    # Add a few more unique courses not directly tied to a single tech or linked to multiple
+    courses_to_generate.extend([
+        {
+            "name": "Gestión de Proyectos Ágiles",
+            "link": fake.url(),
+            "duration": time(hour=12, minute=0),
+            "technology_id": None, # Can be null based on your model
+            "modality_id": modality_ids["Virtual"],
+            "credentials": "PMP Agile Certified"
+        },
+        {
+            "name": "Comunicación Efectiva",
+            "link": fake.url(),
+            "duration": time(hour=6, minute=0),
+            "technology_id": None,
+            "modality_id": modality_ids["Presencial"],
+            "credentials": ""
+        }
+    ])
+
+    course_ids = []
+    for course_info in courses_to_generate:
+        course_id = _mock_turso_id_counters["course_id"]
+        _mock_turso_id_counters["course_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_m_course (course_id, course_name, course_link, course_duration, technology_id, course_modality_id, course_credentials, course_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                course_id,
+                course_info["name"],
+                course_info["link"],
+                str(course_info["duration"]), # Convert time object to string for Turso
+                course_info["technology_id"],
+                course_info["modality_id"],
+                course_info["credentials"],
+                datetime.utcnow().isoformat()
+            ]
+        )
+        course_ids.append(course_id)
+    return course_ids
+
+async def insert_career_plan_data(course_ids: list):
+    career_plan_ids = []
+    # Create career plans by linking existing courses
+    for course_id in random.sample(course_ids, min(len(course_ids), 15)): # Create about 15 career plans
+        career_plan_id = _mock_turso_id_counters["career_plan_id"]
+        _mock_turso_id_counters["career_plan_id"] += 1
+        await execute_turso_query(
+            "INSERT INTO acd_m_career_plan (career_plan_id, course_id) VALUES (?, ?)",
+            [career_plan_id, course_id]
+        )
+        career_plan_ids.append(career_plan_id)
+    return career_plan_ids
+
+async def insert_user_training_assignments(client_user_ids: list, instructor_user_ids: list, training_ids: dict):
+    user_training_assignments = []
+    user_training_statuses_updates = {} # To track and update acd_t_user_training_status
+
+    for user_id in client_user_ids:
+        # Each client takes 2-5 trainings
+        num_trainings = random.randint(2, 5)
+        assigned_trainings = random.sample(list(training_ids.values()), min(num_trainings, len(training_ids)))
+
+        user_training_statuses_updates[user_id] = {
+            "total": len(assigned_trainings),
+            "completed": 0,
+            "in_progress": 0,
+            "overall_status": "no_training"
+        }
+
+        for training_id in assigned_trainings:
+            assignment_id = _mock_turso_id_counters["assignment_id"]
+            _mock_turso_id_counters["assignment_id"] += 1
+            
+            assignment_status = random.choice(['assigned', 'in_progress', 'completed'])
+            completion_percentage = 0.00
+            if assignment_status == 'in_progress':
+                completion_percentage = round(random.uniform(10.0, 90.0), 2)
+            elif assignment_status == 'completed':
+                completion_percentage = 100.00
+            
+            instructor_id = random.choice(instructor_user_ids) if instructor_user_ids else None
+            meeting_link = fake.url() if random.random() < 0.5 else None
+
+            await execute_turso_query(
+                "INSERT INTO acd_t_user_training_assignment (assignment_id, user_id, training_id, instructor_id, assignment_status, assignment_created_at, completion_percentage, instructor_meeting_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    assignment_id, user_id, training_id, instructor_id, assignment_status,
+                    datetime.utcnow().isoformat(), completion_percentage, meeting_link
+                ]
+            )
+            user_training_assignments.append({
+                "assignment_id": assignment_id,
+                "user_id": user_id,
+                "training_id": training_id,
+                "completion_percentage": completion_percentage,
+                "assignment_status": assignment_status
+            })
+
+            # Update for UserTrainingStatus
+            if assignment_status == 'completed':
+                user_training_statuses_updates[user_id]["completed"] += 1
+            elif assignment_status == 'in_progress':
+                user_training_statuses_updates[user_id]["in_progress"] += 1
+    
+    return user_training_assignments, user_training_statuses_updates
+
+async def insert_user_technology_progress(user_training_assignments: list, technology_ids: dict):
+    # Populate user_technology_progress based on assignments
+    for assignment in user_training_assignments:
+        # Get technologies associated with this training
+        training_id = assignment["training_id"]
+        
+        # In a real scenario, you'd query acd_t_training_technology to get tech_ids for this training_id
+        # For mock, let's just pick a few random technologies for each completed assignment
+        # or link them based on the training's original technologies if we stored that info better.
+        
+        # Simulating fetching associated technologies for the training
+        # This would ideally be a Turso query, but for mock, let's approximate
+        associated_tech_names = []
+        for t_info in trainings_data: # Use the global trainings_data mock
+            if trainings_data.index(t_info) + _mock_turso_id_counters["training_id"] - len(trainings_data) == training_id: # Crude mapping to mock training_id
+                 associated_tech_names = t_info["technologies"]
+                 break
+        
+        if not associated_tech_names: # Fallback if no specific technologies found
+            associated_tech_names = random.sample(list(technology_ids.keys()), random.randint(1, 3))
+
+        for tech_name in associated_tech_names:
+            if tech_name in technology_ids:
+                progress_id = _mock_turso_id_counters["progress_id"]
+                _mock_turso_id_counters["progress_id"] += 1
+                
+                is_completed = 'N'
+                completed_at = None
+                if assignment["completion_percentage"] == 100.00:
+                    is_completed = 'Y'
+                    completed_at = (datetime.utcnow() - timedelta(days=random.randint(1, 30))).isoformat()
+
+                await execute_turso_query(
+                    "INSERT INTO acd_t_user_technology_progress (progress_id, assignment_id, technology_id, is_completed, completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    [
+                        progress_id, assignment["assignment_id"], technology_ids[tech_name],
+                        is_completed, completed_at, datetime.utcnow().isoformat()
+                    ]
+                )
+
+async def insert_user_training_status(user_training_statuses_updates: dict):
+    for user_id, stats in user_training_statuses_updates.items():
+        overall_status = "no_training"
+        if stats["completed"] == stats["total"] and stats["total"] > 0:
+            overall_status = "completed"
+        elif stats["in_progress"] > 0 or stats["completed"] > 0:
+            overall_status = "in_progress"
+
+        status_id = _mock_turso_id_counters["status_id"]
+        _mock_turso_id_counters["status_id"] += 1
+
+        await execute_turso_query(
+            "INSERT INTO acd_t_user_training_status (status_id, user_id, total_trainings_assigned, trainings_completed, trainings_in_progress, overall_status, last_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                status_id, user_id, stats["total"], stats["completed"], stats["in_progress"],
+                overall_status, datetime.utcnow().isoformat(), datetime.utcnow().isoformat()
+            ]
+        )
+
+async def insert_user_career_plan_data(client_user_ids: list, career_plan_ids: list):
+    for user_id in client_user_ids:
+        # Each client might be assigned 1-3 career plans
+        num_plans = random.randint(1, min(3, len(career_plan_ids)))
+        assigned_plans = random.sample(career_plan_ids, num_plans)
+
+        for plan_id in assigned_plans:
+            user_career_plan_id = _mock_turso_id_counters["user_career_plan_id"]
+            _mock_turso_id_counters["user_career_plan_id"] += 1
+            career_plan_status = random.choice(['P', 'E', 'C']) # P=Pending, E=In Progress, C=Completed
+            await execute_turso_query(
+                "INSERT INTO acd_t_user_career_plan (user_career_plan_id, user_id, career_plan_id, career_plan_status, user_career_plan_created_at) VALUES (?, ?, ?, ?, ?)",
+                [
+                    user_career_plan_id, user_id, plan_id, career_plan_status, datetime.utcnow().isoformat()
+                ]
+            )
+
+async def insert_course_assignment_data(client_user_ids: list, instructor_user_ids: list, course_ids: list):
+    for user_id in client_user_ids:
+        # Each client might have 1-3 direct course assignments
+        num_assignments = random.randint(1, min(3, len(course_ids)))
+        assigned_courses = random.sample(course_ids, num_assignments)
+
+        for course_id in assigned_courses:
+            assignment_id = _mock_turso_id_counters["course_assignment_id"]
+            _mock_turso_id_counters["course_assignment_id"] += 1
+            
+            assignment_status = random.choice(['P', 'E', 'C', 'X']) # P=Pending, E=In Progress, C=Completed, X=Cancelled
+            start_date = (datetime.utcnow() - timedelta(days=random.randint(1, 60))) if assignment_status != 'P' else None
+            end_date = (start_date + timedelta(days=random.randint(7, 90))) if assignment_status == 'C' and start_date else None
+            
+            instructor_id = random.choice(instructor_user_ids) if instructor_user_ids else None
+
+            await execute_turso_query(
+                "INSERT INTO acd_t_course_assignment (course_assignment_id, course_id, client_id, instructor_id, assignment_status, assignment_created_at, assignment_start_date, assignment_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    assignment_id, course_id, user_id, instructor_id, assignment_status,
+                    datetime.utcnow().isoformat(), start_date.isoformat() if start_date else None, end_date.isoformat() if end_date else None
+                ]
+            )
+
+
+# --- Global Data Definitions (from your prompt) ---
+technologies_data = [
+    "Rust", "Go (Golang)", "Python", "JavaScript", "TypeScript", "PHP", "Ruby", "Java", "Kotlin", "Elixir",
+    "Swift", "C#", "Django", "Flask", "FastAPI", "Node.js", "Express.js", "NestJS", "Spring Boot",
+    "Ruby on Rails", "Laravel", "Phoenix", "Actix-Web", "Gin", "Fiber", "PostgreSQL", "MySQL", "MariaDB",
+    "MongoDB", "Redis", "SQLite", "Cassandra", "Firebase", "React", "Vue.js", "Angular", "Svelte",
+    "Next.js", "Nuxt.js", "Astro", "Docker", "Kubernetes", "Terraform", "AWS", "Google Cloud Platform",
+    "Azure", "Jenkins", "GitHub Actions", "Ansible", "Jest", "Git", "JWT", "OWASP", "Cypress", "Selenium"
+]
+
+trainings_data = [
+    {
+        "name": "Control de Versiones & CI/CD",
+        "description": "Manejo profesional de código con Git y automatización",
+        "technologies": ["Git", "GitHub Actions", "Jenkins"]
+    },
+    {
+        "name": "Bases de Datos SQL Avanzadas",
+        "description": "Administración y optimización de bases de datos relacionales",
+        "technologies": ["PostgreSQL", "MySQL", "MariaDB", "SQLite"]
+    },
+    {
+        "name": "Backend con JavaScript/TypeScript",
+        "description": "Desarrollo backend moderno con Node.js",
+        "technologies": ["Node.js", "Express.js", "NestJS", "TypeScript", "JavaScript"]
+    },
+    {
+        "name": "Python Backend Completo",
+        "description": "Desarrollo backend con Python y frameworks modernos",
+        "technologies": ["Django", "FastAPI", "Flask", "Python", "PostgreSQL"]
+    },
+    {
+        "name": "Rust & Go para Backend",
+        "description": "Desarrollo de alta performance con Rust y Go",
+        "technologies": ["Rust", "Actix-Web", "Go (Golang)", "Gin", "Fiber"]
+    },
+    {
+        "name": "Bases de Datos NoSQL",
+        "description": "Modelado y gestión de datos no relacionales",
+        "technologies": ["MongoDB", "Redis", "Cassandra", "Firebase"]
+    },
+    {
+        "name": "DevOps & Cloud",
+        "description": "Infraestructura como código y despliegue en la nube",
+        "technologies": ["Docker", "Kubernetes", "AWS", "Terraform", "Ansible"]
+    },
+    {
+        "name": "Frontend Moderno",
+        "description": "Desarrollo frontend con las últimas tecnologías",
+        "technologies": ["React", "Next.js", "TypeScript", "JavaScript"]
+    },
+    {
+        "name": "PHP & Laravel",
+        "description": "Desarrollo web con PHP y el framework Laravel",
+        "technologies": ["PHP", "Laravel", "MySQL"]
+    },
+    {
+        "name": "Microservicios con Go",
+        "description": "Arquitectura de microservicios escalable",
+        "technologies": ["Go (Golang)", "Gin", "Docker", "Kubernetes"]
+    },
+    {
+        "name": "Testing & QA Automatizado",
+        "description": "Pruebas automatizadas y aseguramiento de calidad",
+        "technologies": ["Jest", "Cypress", "Selenium", "GitHub Actions", "Docker"]
+    },
+    {
+        "name": "Seguridad Web",
+        "description": "Implementación de seguridad en aplicaciones web",
+        "technologies": ["OWASP", "JWT", "Node.js", "Python"]
+    },
+    {
+        "name": "Serverless & Cloud Functions",
+        "description": "Desarrollo sin servidor en la nube",
+        "technologies": ["AWS", "Azure", "Google Cloud Platform", "JavaScript"]
+    },
+    {
+        "name": "GraphQL Moderno",
+        "description": "APIs modernas con GraphQL",
+        "technologies": ["Node.js", "MongoDB", "TypeScript"]
+    },
+    {
+        "name": "Elixir & Phoenix",
+        "description": "Desarrollo funcional escalable con Elixir",
+        "technologies": ["Elixir", "Phoenix", "PostgreSQL"]
+    }
+]
+
+
+# --- The New Endpoint ---
+@app.post("/api/v1/pro/powerbi/turso/generate_and_export_data", tags=["Power BI Analytics"], summary="Generar datos simulados en Turso y exportar a XLSX")
+async def generate_and_export_turso_data(
+    num_clients: int = 40,
+    num_instructors: int = 10
+):
+    """
+    Genera datos simulados para todas las tablas en Turso y luego exporta toda
+    la información a un archivo XLSX.
+    
+    - `num_clients`: Número de usuarios con rol 'Cliente' a generar.
+    - `num_instructors`: Número de usuarios con rol 'Instructor' a generar.
+    """
+    try:
+        # Clear mock data (for testing, in real app you might want to skip or handle existing data)
+        global _mock_turso_data, _mock_turso_id_counters
+        _mock_turso_data = {table: [] for table in _mock_turso_data.keys()}
+        for k in _mock_turso_id_counters:
+            _mock_turso_id_counters[k] = 1
+
+        print("--- Starting Data Generation ---")
+
+        # 1. Insert Genders
+        print("Inserting gender data...")
+        gender_ids = await insert_gender_data()
+        print(f"Generated {len(gender_ids)} genders.")
+
+        # 2. Insert Roles
+        print("Inserting role data...")
+        role_ids = await insert_role_data()
+        print(f"Generated {len(role_ids)} roles: {list(role_ids.keys())}")
+
+        # 3. Insert User Positions
+        print("Inserting user position data...")
+        position_ids = await insert_user_position_data()
+        print(f"Generated {len(position_ids)} user positions.")
+
+        # 4. Insert Technologies
+        print("Inserting technology data...")
+        technology_ids = await insert_technology_data(technologies_data)
+        print(f"Generated {len(technology_ids)} technologies.")
+
+        # 5. Insert Course Modalities
+        print("Inserting course modality data...")
+        modality_ids = await insert_course_modality_data()
+        print(f"Generated {len(modality_ids)} course modalities: {list(modality_ids.keys())}")
+
+        # 6. Insert Course Types (as per your model, though not specified in prompt details)
+        print("Inserting course type data...")
+        course_type_ids = await insert_course_type_data()
+        print(f"Generated {len(course_type_ids)} course types.")
+        
+        # 7. Insert Persons and Users (Clients, Instructors, Admin)
+        print(f"Inserting {num_clients} clients and {num_instructors} instructors...")
+        user_ids, instructor_user_ids = await insert_person_and_user_data(gender_ids, role_ids, position_ids, num_clients, num_instructors)
+        client_user_ids = [uid for uid in user_ids if uid not in instructor_user_ids and uid != _mock_turso_id_counters["user_id"] - num_clients - num_instructors - 1] # Crude way to get client IDs
+        print(f"Generated {len(user_ids)} users (incl. admin, {len(client_user_ids)} clients, {len(instructor_user_ids)} instructors).")
+
+        # 8. Insert Trainings and Training Technologies
+        print("Inserting training and training technology data...")
+        training_ids = await insert_training_and_related_data(trainings_data, technology_ids)
+        print(f"Generated {len(training_ids)} trainings.")
+
+        # 9. Insert Courses
+        print("Inserting course data...")
+        course_ids = await insert_course_data(technology_ids, modality_ids)
+        print(f"Generated {len(course_ids)} courses.")
+
+        # 10. Insert Career Plans
+        print("Inserting career plan data...")
+        career_plan_ids = await insert_career_plan_data(course_ids)
+        print(f"Generated {len(career_plan_ids)} career plans.")
+
+        # 11. Insert User Training Assignments and track for status
+        print("Inserting user training assignments...")
+        user_training_assignments, user_training_statuses_updates = await insert_user_training_assignments(client_user_ids, instructor_user_ids, training_ids)
+        print(f"Generated {len(user_training_assignments)} user training assignments.")
+
+        # 12. Insert User Technology Progress
+        print("Inserting user technology progress...")
+        await insert_user_technology_progress(user_training_assignments, technology_ids)
+        print("Generated user technology progress.")
+
+        # 13. Insert User Training Status
+        print("Inserting user training status summaries...")
+        await insert_user_training_status(user_training_statuses_updates)
+        print("Generated user training status.")
+        
+        # 14. Insert User Career Plan Assignments
+        print("Inserting user career plan assignments...")
+        await insert_user_career_plan_data(client_user_ids, career_plan_ids)
+        print("Generated user career plan assignments.")
+
+        # 15. Insert Course Assignments
+        print("Inserting course assignments...")
+        await insert_course_assignment_data(client_user_ids, instructor_user_ids, course_ids)
+        print("Generated course assignments.")
+
+        print("--- Data Generation Complete. Starting XLSX Export ---")
+
+        # After data generation, call the XLSX export endpoint
+        return await download_all_turso_tables_xlsx()
+
+    except Exception as e:
+        print(f"Error during data generation or export: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al generar y exportar datos: {str(e)}")
+
+# This assumes your `app = FastAPI(...)` and other setup is already in main.py
+# If you are running this file directly for testing:
+# if __name__ == "__main__":
+#    import uvicorn
+#    uvicorn.run(app, host="0.0.0.0", port=8000)
