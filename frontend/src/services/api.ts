@@ -195,7 +195,7 @@ export const catalogService = {
     return response.data;
   },
   
-  getPositions: async (): Promise<UserPosition[]> => {
+  getPositions: async (): Promise<any[]> => {
     const response = await api.get('/positions');
     return response.data;
   },
@@ -220,7 +220,7 @@ export const catalogService = {
     return response.data;
   },
   
-  createPosition: async (positionData: { position_name: string }): Promise<UserPosition> => {
+  createPosition: async (positionData: { position_name: string }): Promise<any> => {
     const response = await api.post('/positions', positionData);
     return response.data;
   },

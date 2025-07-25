@@ -4,12 +4,10 @@ export interface User {
   user_username: string;
   person_id: number;
   user_role: number;
-  user_position_id: number;
   user_status: string;
   user_created_at: string;
   person: Person;
   role: Role;
-  position: UserPosition;
 }
 
 export interface Person {
@@ -32,12 +30,6 @@ export interface Role {
   role_created_at: string;
 }
 
-export interface UserPosition {
-  user_position_id: number;
-  position_name: string;
-  position_status: string;
-  user_position_created_at: string;
-}
 
 export interface Gender {
   gender_id: number;
@@ -113,7 +105,6 @@ export interface UserCreateForm {
   user_password: string;
   person_id: number;
   user_role: number;
-  user_position_id: number;
 }
 
 export interface PersonCreateForm {

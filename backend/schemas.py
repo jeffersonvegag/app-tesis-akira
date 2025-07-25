@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime, time
+from datetime import datetime
 from typing import Optional, List
 
 # Base schemas
@@ -51,25 +51,10 @@ class Person(PersonBase):
     class Config:
         from_attributes = True
 
-class UserPositionBase(BaseModel):
-    position_name: str
-
-class UserPositionCreate(UserPositionBase):
-    pass
-
-class UserPosition(UserPositionBase):
-    user_position_id: int
-    position_status: str
-    user_position_created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
 class UserBase(BaseModel):
     user_username: str
     person_id: int
     user_role: int
-    user_position_id: int
 
 class UserCreate(UserBase):
     user_password: str
@@ -80,7 +65,6 @@ class User(UserBase):
     user_created_at: datetime
     person: Person
     role: Role
-    position: UserPosition
     
     class Config:
         from_attributes = True
@@ -98,93 +82,9 @@ class Technology(TechnologyBase):
     class Config:
         from_attributes = True
 
-class CourseModalityBase(BaseModel):
-    course_modality_name: str
-
-class CourseModalityCreate(CourseModalityBase):
-    pass
-
-class CourseModality(CourseModalityBase):
-    course_modality_id: int
-    course_modality_created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class CourseBase(BaseModel):
-    course_name: str
-    course_link: str
-    course_duration: time
-    technology_id: Optional[int] = None
-    course_modality_id: Optional[int] = None
-    course_credentials: Optional[str] = ""
-
-class CourseCreate(CourseBase):
-    pass
-
-class Course(CourseBase):
-    course_id: int
-    course_created_at: datetime
-    technology: Optional[Technology] = None
-    modality: Optional[CourseModality] = None
-    
-    class Config:
-        from_attributes = True
-
-class CareerPlanBase(BaseModel):
-    course_id: int
-
-class CareerPlanCreate(CareerPlanBase):
-    pass
-
-class CareerPlan(CareerPlanBase):
-    career_plan_id: int
-    course: Course
-    
-    class Config:
-        from_attributes = True
-
-class UserCareerPlanBase(BaseModel):
-    user_id: int
-    career_plan_id: int
-
-class UserCareerPlanCreate(UserCareerPlanBase):
-    pass
-
-class UserCareerPlan(UserCareerPlanBase):
-    user_career_plan_id: int
-    career_plan_status: str
-    user_career_plan_created_at: datetime
-    user: User
-    career_plan: CareerPlan
-    
-    class Config:
-        from_attributes = True
-
 class Login(BaseModel):
     username: str
     password: str
-
-class CourseAssignmentBase(BaseModel):
-    course_id: int
-    client_id: int
-    instructor_id: Optional[int] = None
-    assignment_status: Optional[str] = 'P'
-    assignment_start_date: Optional[datetime] = None
-    assignment_end_date: Optional[datetime] = None
-
-class CourseAssignmentCreate(CourseAssignmentBase):
-    pass
-
-class CourseAssignment(CourseAssignmentBase):
-    course_assignment_id: int
-    assignment_created_at: datetime
-    course: Course
-    client: User
-    instructor: Optional[User] = None
-    
-    class Config:
-        from_attributes = True
 
 class TrainingBase(BaseModel):
     training_name: str

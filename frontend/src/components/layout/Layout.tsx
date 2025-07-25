@@ -199,7 +199,7 @@ const Header: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
             <p className="text-sm font-medium text-gray-900">
               {user?.person.person_first_name} {user?.person.person_last_name}
             </p>
-            <p className="text-xs text-gray-500">{user?.position.position_name}</p>
+            <p className="text-xs text-gray-500">{user?.role.role_name}</p>
           </div>
         </div>
       </div>
