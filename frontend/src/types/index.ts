@@ -267,3 +267,127 @@ export interface UserTrainingStatusCreateForm {
   trainings_in_progress?: number;
   overall_status?: string;
 }
+
+// Tipos para gestión de equipos
+export interface Team {
+  team_id: number;
+  team_name: string;
+  team_description?: string;
+  supervisor_id: number;
+  team_status: string;
+  team_created_at: string;
+  supervisor: User;
+  team_members: TeamMember[];
+}
+
+export interface TeamMember {
+  team_member_id: number;
+  team_id: number;
+  user_id: number;
+  member_role: 'instructor' | 'client';
+  member_status: string;
+  joined_at: string;
+  user: User;
+}
+
+export interface TeamCreateForm {
+  team_name: string;
+  team_description?: string;
+  supervisor_id: number;
+}
+
+export interface TeamCreateWithMembersForm {
+  team_name: string;
+  team_description?: string;
+  supervisor_id: number;
+  instructors: number[];
+  clients: number[];
+}
+
+export interface TeamUpdateForm {
+  team_name?: string;
+  team_description?: string;
+  supervisor_id?: number;
+}
+
+export interface TeamMemberCreateForm {
+  user_id: number;
+  member_role: 'instructor' | 'client';
+}
+
+// Tipos para materiales de apoyo
+export interface TrainingMaterial {
+  material_id: number;
+  training_id: number;
+  instructor_id: number;
+  material_title: string;
+  material_description?: string;
+  material_url: string;
+  material_type: 'link' | 'document' | 'video';
+  material_status: string;
+  material_created_at: string;
+  training: Training;
+  instructor: User;
+}
+
+export interface TrainingMaterialCreateForm {
+  training_id: number;
+  material_title: string;
+  material_description?: string;
+  material_url: string;
+  material_type: 'link' | 'document' | 'video';
+}
+
+export interface TrainingMaterialUpdateForm {
+  material_title?: string;
+  material_description?: string;
+  material_url?: string;
+  material_type?: 'link' | 'document' | 'video';
+}
+
+// Tipos para progreso de tecnologías
+export interface UserTechnologyProgress {
+  progress_id: number;
+  assignment_id: number;
+  technology_id: number;
+  is_completed: 'Y' | 'N';
+  completed_at?: string;
+  created_at: string;
+  assignment?: UserTrainingAssignment;
+  technology: Technology;
+}
+
+export interface UserTechnologyProgressCreateForm {
+  assignment_id: number;
+  technology_id: number;
+  is_completed: 'Y' | 'N';
+}
+
+export interface UserTechnologyProgressUpdateForm {
+  is_completed: 'Y' | 'N';
+}
+
+// Tipos para progreso de materiales
+export interface UserMaterialProgress {
+  progress_id: number;
+  user_id: number;
+  material_id: number;
+  assignment_id: number;
+  is_completed: 'Y' | 'N';
+  completed_at?: string;
+  created_at: string;
+  user: User;
+  material: TrainingMaterial;
+  assignment?: UserTrainingAssignment;
+}
+
+export interface UserMaterialProgressCreateForm {
+  user_id: number;
+  material_id: number;
+  assignment_id: number;
+  is_completed: 'Y' | 'N';
+}
+
+export interface UserMaterialProgressUpdateForm {
+  is_completed: 'Y' | 'N';
+}

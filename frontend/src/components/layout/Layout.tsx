@@ -31,7 +31,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, o
       title: 'Dashboard',
       icon: Home,
       path: '/dashboard',
-      roles: [UserRoles.ADMIN, UserRoles.SUPERVISOR, UserRoles.CLIENT, UserRoles.INSTRUCTOR],
+      roles: [UserRoles.ADMIN, UserRoles.CLIENT, UserRoles.INSTRUCTOR],
     },
     {
       title: 'Gestión de Usuarios',
@@ -40,21 +40,21 @@ const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, o
       roles: [UserRoles.ADMIN],
     },
     {
-      title: 'Asignación de Crusos',
+      title: 'Asignación de Cursos',
       icon: BookOpen,
       path: '/course-assignments',
       roles: [UserRoles.ADMIN],
     },
     {
-      title: 'Gestión de Cursos',
-      icon: BookOpen,
-      path: '/courses',
+      title: 'Gestión de Equipos',
+      icon: Users,
+      path: '/teams',
       roles: [UserRoles.ADMIN],
     },
     {
       title: 'Mi Equipo',
       icon: Users,
-      path: '/my-team',
+      path: '/teams',
       roles: [UserRoles.SUPERVISOR],
     },
     {

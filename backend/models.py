@@ -125,3 +125,60 @@ class UserTrainingStatus(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User")
+
+class Team(Base):
+    __tablename__ = "per_m_team"
+    
+    team_id = Column(Integer, primary_key=True, index=True)
+    team_name = Column(String(100), nullable=False)
+    team_description = Column(Text, nullable=True)
+    supervisor_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False)
+    team_status = Column(String(1), nullable=False, default='A')
+    team_created_at = Column(DateTime, default=datetime.utcnow)
+    
+    supervisor = relationship("User", foreign_keys=[supervisor_id])
+    team_members = relationship("TeamMember", back_populates="team")
+
+class TeamMember(Base):
+    __tablename__ = "per_t_team_member"
+    
+    team_member_id = Column(Integer, primary_key=True, index=True)
+    team_id = Column(Integer, ForeignKey("per_m_team.team_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False)
+    member_role = Column(String(20), nullable=False)  # 'instructor' or 'client'
+    member_status = Column(String(1), nullable=False, default='A')
+    joined_at = Column(DateTime, default=datetime.utcnow)
+    
+    team = relationship("Team", back_populates="team_members")
+    user = relationship("User")
+
+class TrainingMaterial(Base):
+    __tablename__ = "acd_m_training_material"
+    
+    material_id = Column(Integer, primary_key=True, index=True)
+    training_id = Column(Integer, ForeignKey("acd_m_training.training_id"), nullable=False)
+    instructor_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False)
+    material_title = Column(String(200), nullable=False)
+    material_description = Column(Text, nullable=True)
+    material_url = Column(String(500), nullable=False)
+    material_type = Column(String(50), nullable=False, default='link')  # 'link', 'document', 'video'
+    material_status = Column(String(1), nullable=False, default='A')
+    material_created_at = Column(DateTime, default=datetime.utcnow)
+    
+    training = relationship("Training")
+    instructor = relationship("User")
+
+class UserMaterialProgress(Base):
+    __tablename__ = "acd_t_user_material_progress"
+    
+    progress_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("per_m_user.user_id"), nullable=False)
+    material_id = Column(Integer, ForeignKey("acd_m_training_material.material_id"), nullable=False)
+    assignment_id = Column(Integer, ForeignKey("acd_t_user_training_assignment.assignment_id"), nullable=False)
+    is_completed = Column(String(1), nullable=False, default='N')  # Y/N
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User")
+    material = relationship("TrainingMaterial")
+    assignment = relationship("UserTrainingAssignment")

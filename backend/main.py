@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
+from datetime import datetime
 import models
 import schemas
 from database import engine, get_db
@@ -86,20 +87,54 @@ def initialize_data(db: Session = Depends(get_db)):
         
         # Crear personas de prueba
         persons = [
+            # Admin
             models.Person(person_dni=12345678, person_first_name="Admin", person_last_name="Sistema", person_gender=1, person_email="admin@viamatica.com"),
-            models.Person(person_dni=23456789, person_first_name="Juan", person_last_name="Supervisor", person_gender=1, person_email="supervisor@viamatica.com"),
-            models.Person(person_dni=34567890, person_first_name="Maria", person_last_name="Cliente", person_gender=2, person_email="cliente@viamatica.com"),
-            models.Person(person_dni=45678901, person_first_name="Carlos", person_last_name="Instructor", person_gender=1, person_email="instructor@viamatica.com")
+            
+            # 4 Supervisores
+            models.Person(person_dni=20000001, person_first_name="Ana", person_last_name="Supervisor", person_gender=2, person_email="supervisor1@viamatica.com"),
+            models.Person(person_dni=20000002, person_first_name="Carlos", person_last_name="Supervisor", person_gender=1, person_email="supervisor2@viamatica.com"),
+            models.Person(person_dni=20000003, person_first_name="María", person_last_name="Supervisor", person_gender=2, person_email="supervisor3@viamatica.com"),
+            models.Person(person_dni=20000004, person_first_name="Luis", person_last_name="Supervisor", person_gender=1, person_email="supervisor4@viamatica.com"),
+            
+            # 5 Clientes
+            models.Person(person_dni=30000001, person_first_name="Pedro", person_last_name="Cliente", person_gender=1, person_email="cliente1@viamatica.com"),
+            models.Person(person_dni=30000002, person_first_name="Elena", person_last_name="Cliente", person_gender=2, person_email="cliente2@viamatica.com"),
+            models.Person(person_dni=30000003, person_first_name="Roberto", person_last_name="Cliente", person_gender=1, person_email="cliente3@viamatica.com"),
+            models.Person(person_dni=30000004, person_first_name="Sofia", person_last_name="Cliente", person_gender=2, person_email="cliente4@viamatica.com"),
+            models.Person(person_dni=30000005, person_first_name="Diego", person_last_name="Cliente", person_gender=1, person_email="cliente5@viamatica.com"),
+            
+            # 4 Instructores
+            models.Person(person_dni=40000001, person_first_name="Jorge", person_last_name="Instructor", person_gender=1, person_email="instructor1@viamatica.com"),
+            models.Person(person_dni=40000002, person_first_name="Carmen", person_last_name="Instructor", person_gender=2, person_email="instructor2@viamatica.com"),
+            models.Person(person_dni=40000003, person_first_name="Miguel", person_last_name="Instructor", person_gender=1, person_email="instructor3@viamatica.com"),
+            models.Person(person_dni=40000004, person_first_name="Patricia", person_last_name="Instructor", person_gender=2, person_email="instructor4@viamatica.com")
         ]
         db.add_all(persons)
         db.commit()
         
         # Crear usuarios de prueba
         users = [
+            # Admin
             models.User(user_username="admin", user_password=pwd_context.hash("admin123"), person_id=1, user_role=1),
-            models.User(user_username="supervisor", user_password=pwd_context.hash("sup123"), person_id=2, user_role=2),
-            models.User(user_username="cliente", user_password=pwd_context.hash("cli123"), person_id=3, user_role=3),
-            models.User(user_username="instructor", user_password=pwd_context.hash("ins123"), person_id=4, user_role=4)
+            
+            # 4 Supervisores
+            models.User(user_username="supervisor1", user_password=pwd_context.hash("sup123"), person_id=2, user_role=2),
+            models.User(user_username="supervisor2", user_password=pwd_context.hash("sup123"), person_id=3, user_role=2),
+            models.User(user_username="supervisor3", user_password=pwd_context.hash("sup123"), person_id=4, user_role=2),
+            models.User(user_username="supervisor4", user_password=pwd_context.hash("sup123"), person_id=5, user_role=2),
+            
+            # 5 Clientes
+            models.User(user_username="cliente1", user_password=pwd_context.hash("cli123"), person_id=6, user_role=3),
+            models.User(user_username="cliente2", user_password=pwd_context.hash("cli123"), person_id=7, user_role=3),
+            models.User(user_username="cliente3", user_password=pwd_context.hash("cli123"), person_id=8, user_role=3),
+            models.User(user_username="cliente4", user_password=pwd_context.hash("cli123"), person_id=9, user_role=3),
+            models.User(user_username="cliente5", user_password=pwd_context.hash("cli123"), person_id=10, user_role=3),
+            
+            # 4 Instructores
+            models.User(user_username="instructor1", user_password=pwd_context.hash("ins123"), person_id=11, user_role=4),
+            models.User(user_username="instructor2", user_password=pwd_context.hash("ins123"), person_id=12, user_role=4),
+            models.User(user_username="instructor3", user_password=pwd_context.hash("ins123"), person_id=13, user_role=4),
+            models.User(user_username="instructor4", user_password=pwd_context.hash("ins123"), person_id=14, user_role=4)
         ]
         db.add_all(users)
         db.commit()
@@ -236,9 +271,9 @@ def get_technologies(db: Session = Depends(get_db)):
 @app.get("/api/v1/trainings", response_model=List[schemas.Training], tags=["Trainings"])
 def get_trainings(db: Session = Depends(get_db)):
     """
-    Obtener todas las capacitaciones
+    Obtener todas las capacitaciones con sus tecnologías
     """
-    return db.query(models.Training).all()
+    return db.query(models.Training).options(joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology)).all()
 
 @app.get("/api/v1/users", response_model=List[schemas.User], tags=["Users"])
 def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -341,11 +376,56 @@ def create_user_training_assignment(assignment: schemas.UserTrainingAssignmentCr
     """
     Crear asignación de capacitación a usuario
     """
-    db_assignment = models.UserTrainingAssignment(**assignment.dict())
-    db.add(db_assignment)
-    db.commit()
-    db.refresh(db_assignment)
-    return db_assignment
+    try:
+        # Verificar que el usuario existe
+        user = db.query(models.User).filter(models.User.user_id == assignment.user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Verificar que la capacitación existe
+        training = db.query(models.Training).filter(models.Training.training_id == assignment.training_id).first()
+        if not training:
+            raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+        
+        # Verificar si ya existe una asignación
+        existing_assignment = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.user_id == assignment.user_id,
+            models.UserTrainingAssignment.training_id == assignment.training_id
+        ).first()
+        
+        if existing_assignment:
+            raise HTTPException(status_code=400, detail="El usuario ya tiene asignada esta capacitación")
+        
+        # Crear la asignación
+        db_assignment = models.UserTrainingAssignment(
+            user_id=assignment.user_id,
+            training_id=assignment.training_id,
+            instructor_id=assignment.instructor_id,
+            assignment_status='not_started'
+        )
+        
+        db.add(db_assignment)
+        db.commit()
+        db.refresh(db_assignment)
+        
+        # Cargar relaciones para la respuesta
+        db_assignment = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.assignment_id == db_assignment.assignment_id
+        ).options(
+            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person).joinedload(models.Person.gender),
+            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.role),
+            joinedload(models.UserTrainingAssignment.training),
+            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.person).joinedload(models.Person.gender),
+            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.role)
+        ).first()
+        
+        return db_assignment
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al crear asignación: {str(e)}")
 
 @app.get("/api/v1/user-training-assignments", response_model=List[schemas.UserTrainingAssignment], tags=["Training Assignments"])
 def get_user_training_assignments(db: Session = Depends(get_db)):
@@ -363,6 +443,29 @@ def get_user_training_assignment(assignment_id: int, db: Session = Depends(get_d
     if not assignment:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
     return assignment
+
+@app.get("/api/v1/user-training-assignments/user/{user_id}", response_model=List[schemas.UserTrainingAssignment], tags=["Training Assignments"])
+def get_user_training_assignments_by_user(user_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener todas las asignaciones de capacitación de un usuario específico
+    """
+    # Verificar que el usuario existe
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Obtener asignaciones del usuario con todas las relaciones necesarias
+    assignments = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.user_id == user_id
+    ).options(
+        joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person).joinedload(models.Person.gender),
+        joinedload(models.UserTrainingAssignment.user).joinedload(models.User.role),
+        joinedload(models.UserTrainingAssignment.training).joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology),
+        joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.person).joinedload(models.Person.gender),
+        joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.role)
+    ).all()
+    
+    return assignments
 
 @app.put("/api/v1/user-training-assignments/training/{training_id}/instructor", tags=["Training Assignments"])
 def assign_instructor_to_training(training_id: int, instructor_data: dict, db: Session = Depends(get_db)):
@@ -410,3 +513,782 @@ def get_users_by_role(role_id: int, db: Session = Depends(get_db)):
     """
     users = db.query(models.User).filter(models.User.user_role == role_id).all()
     return users
+
+# ENDPOINTS PARA GESTIÓN DE EQUIPOS
+
+@app.post("/api/v1/teams", response_model=schemas.Team, tags=["Teams"])
+def create_team(team_data: schemas.TeamCreateWithMembers, db: Session = Depends(get_db)):
+    """
+    Crear un nuevo equipo con supervisor, instructores y clientes
+    """
+    # Verificar que el supervisor existe y tiene el rol correcto (role_id = 2)
+    supervisor = db.query(models.User).filter(
+        models.User.user_id == team_data.supervisor_id,
+        models.User.user_role == 2  # Rol supervisor
+    ).first()
+    
+    if not supervisor:
+        raise HTTPException(status_code=404, detail="Supervisor no encontrado o no tiene el rol correcto")
+    
+    # Crear el equipo
+    team = models.Team(
+        team_name=team_data.team_name,
+        team_description=team_data.team_description,
+        supervisor_id=team_data.supervisor_id
+    )
+    db.add(team)
+    db.flush()  # Para obtener el team_id
+    
+    # Agregar instructores al equipo
+    for instructor_id in team_data.instructors:
+        instructor = db.query(models.User).filter(
+            models.User.user_id == instructor_id,
+            models.User.user_role == 4  # Rol instructor
+        ).first()
+        
+        if instructor:
+            team_member = models.TeamMember(
+                team_id=team.team_id,
+                user_id=instructor_id,
+                member_role='instructor'
+            )
+            db.add(team_member)
+    
+    # Agregar clientes al equipo
+    for client_id in team_data.clients:
+        client = db.query(models.User).filter(
+            models.User.user_id == client_id,
+            models.User.user_role == 3  # Rol cliente
+        ).first()
+        
+        if client:
+            team_member = models.TeamMember(
+                team_id=team.team_id,
+                user_id=client_id,
+                member_role='client'
+            )
+            db.add(team_member)
+    
+    db.commit()
+    db.refresh(team)
+    
+    return team
+
+@app.get("/api/v1/teams", response_model=List[schemas.Team], tags=["Teams"])
+def get_teams(db: Session = Depends(get_db)):
+    """
+    Obtener todos los equipos
+    """
+    return db.query(models.Team).filter(models.Team.team_status == 'A').all()
+
+@app.get("/api/v1/teams/{team_id}", response_model=schemas.Team, tags=["Teams"])
+def get_team(team_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener un equipo específico por ID
+    """
+    team = db.query(models.Team).filter(
+        models.Team.team_id == team_id,
+        models.Team.team_status == 'A'
+    ).first()
+    
+    if not team:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    return team
+
+@app.get("/api/v1/teams/supervisor/{supervisor_id}", response_model=List[schemas.Team], tags=["Teams"])
+def get_teams_by_supervisor(supervisor_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener equipos asignados a un supervisor específico
+    """
+    teams = db.query(models.Team).filter(
+        models.Team.supervisor_id == supervisor_id,
+        models.Team.team_status == 'A'
+    ).all()
+    
+    return teams
+
+@app.put("/api/v1/teams/{team_id}", response_model=schemas.Team, tags=["Teams"])
+def update_team(team_id: int, team_data: schemas.TeamUpdate, db: Session = Depends(get_db)):
+    """
+    Actualizar información de un equipo
+    """
+    team = db.query(models.Team).filter(
+        models.Team.team_id == team_id,
+        models.Team.team_status == 'A'
+    ).first()
+    
+    if not team:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    if team_data.team_name:
+        team.team_name = team_data.team_name
+    if team_data.team_description:
+        team.team_description = team_data.team_description
+    if team_data.supervisor_id:
+        # Verificar que el nuevo supervisor existe y tiene el rol correcto
+        supervisor = db.query(models.User).filter(
+            models.User.user_id == team_data.supervisor_id,
+            models.User.user_role == 2
+        ).first()
+        
+        if not supervisor:
+            raise HTTPException(status_code=404, detail="Supervisor no encontrado o no tiene el rol correcto")
+        
+        team.supervisor_id = team_data.supervisor_id
+    
+    db.commit()
+    db.refresh(team)
+    
+    return team
+
+@app.delete("/api/v1/teams/{team_id}", tags=["Teams"])
+def delete_team(team_id: int, db: Session = Depends(get_db)):
+    """
+    Eliminar (inactivar) un equipo
+    """
+    team = db.query(models.Team).filter(
+        models.Team.team_id == team_id,
+        models.Team.team_status == 'A'
+    ).first()
+    
+    if not team:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    # Inactivar el equipo y sus miembros
+    team.team_status = 'I'
+    
+    # Inactivar todos los miembros del equipo
+    team_members = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.member_status == 'A'
+    ).all()
+    
+    for member in team_members:
+        member.member_status = 'I'
+    
+    db.commit()
+    
+    return {"message": "Equipo eliminado exitosamente"}
+
+@app.post("/api/v1/teams/{team_id}/members", response_model=schemas.TeamMember, tags=["Teams"])
+def add_team_member(team_id: int, member_data: schemas.TeamMemberBase, db: Session = Depends(get_db)):
+    """
+    Agregar un miembro a un equipo existente
+    """
+    # Verificar que el equipo existe
+    team = db.query(models.Team).filter(
+        models.Team.team_id == team_id,
+        models.Team.team_status == 'A'
+    ).first()
+    
+    if not team:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    # Verificar que el usuario existe y tiene el rol apropiado
+    if member_data.member_role == 'instructor':
+        role_id = 4
+    elif member_data.member_role == 'client':
+        role_id = 3
+    else:
+        raise HTTPException(status_code=400, detail="Rol de miembro inválido. Debe ser 'instructor' o 'client'")
+    
+    user = db.query(models.User).filter(
+        models.User.user_id == member_data.user_id,
+        models.User.user_role == role_id
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado o no tiene el rol correcto")
+    
+    # Verificar que el usuario no esté ya en el equipo
+    existing_member = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.user_id == member_data.user_id,
+        models.TeamMember.member_status == 'A'
+    ).first()
+    
+    if existing_member:
+        raise HTTPException(status_code=400, detail="El usuario ya es miembro de este equipo")
+    
+    # Crear el miembro del equipo
+    team_member = models.TeamMember(
+        team_id=team_id,
+        user_id=member_data.user_id,
+        member_role=member_data.member_role
+    )
+    
+    db.add(team_member)
+    db.commit()
+    db.refresh(team_member)
+    
+    return team_member
+
+@app.delete("/api/v1/teams/{team_id}/members/{member_id}", tags=["Teams"])
+def remove_team_member(team_id: int, member_id: int, db: Session = Depends(get_db)):
+    """
+    Remover un miembro de un equipo
+    """
+    member = db.query(models.TeamMember).filter(
+        models.TeamMember.team_member_id == member_id,
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.member_status == 'A'
+    ).first()
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Miembro del equipo no encontrado")
+    
+    member.member_status = 'I'
+    db.commit()
+    
+    return {"message": "Miembro removido del equipo exitosamente"}
+
+@app.post("/api/v1/teams/{team_id}/assign-training", tags=["Teams"])
+def assign_training_to_team(team_id: int, training_data: dict, db: Session = Depends(get_db)):
+    """
+    Asignar una capacitación a todos los miembros de un equipo
+    """
+    training_id = training_data.get("training_id")
+    instructor_id = training_data.get("instructor_id")  # Opcional
+    
+    if not training_id:
+        raise HTTPException(status_code=400, detail="training_id es requerido")
+    
+    # Verificar que el equipo existe y está activo
+    team = db.query(models.Team).filter(
+        models.Team.team_id == team_id,
+        models.Team.team_status == 'A'
+    ).first()
+    
+    if not team:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    # Verificar que la capacitación existe
+    training = db.query(models.Training).filter(
+        models.Training.training_id == training_id,
+        models.Training.training_status == 'A'
+    ).first()
+    
+    if not training:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+    
+    # Verificar instructor si se proporciona
+    if instructor_id:
+        instructor = db.query(models.User).filter(
+            models.User.user_id == instructor_id,
+            models.User.user_role == 4  # Rol instructor
+        ).first()
+        
+        if not instructor:
+            raise HTTPException(status_code=404, detail="Instructor no encontrado o no tiene el rol correcto")
+    
+    # Obtener todos los miembros activos del equipo (solo clientes)
+    team_clients = db.query(models.TeamMember).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.member_role == 'client',
+        models.TeamMember.member_status == 'A'
+    ).all()
+    
+    if not team_clients:
+        raise HTTPException(status_code=400, detail="No hay clientes en este equipo para asignar capacitaciones")
+    
+    assignments_created = []
+    assignments_skipped = []
+    
+    for team_member in team_clients:
+        # Verificar si el usuario ya tiene esta capacitación asignada
+        existing_assignment = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.user_id == team_member.user_id,
+            models.UserTrainingAssignment.training_id == training_id
+        ).first()
+        
+        if existing_assignment:
+            assignments_skipped.append({
+                "user_id": team_member.user_id,
+                "reason": "Usuario ya tiene esta capacitación asignada"
+            })
+            continue
+        
+        # Crear la asignación
+        assignment = models.UserTrainingAssignment(
+            user_id=team_member.user_id,
+            training_id=training_id,
+            instructor_id=instructor_id,
+            assignment_status='assigned'
+        )
+        
+        db.add(assignment)
+        assignments_created.append({
+            "user_id": team_member.user_id,
+            "assignment_id": None  # Se actualizará después del commit
+        })
+    
+    try:
+        db.commit()
+        
+        # Actualizar los IDs de las asignaciones creadas
+        for i, assignment_data in enumerate(assignments_created):
+            assignment_data["assignment_id"] = assignments_created[i]["user_id"]  # Placeholder
+        
+        return {
+            "message": f"Capacitación '{training.training_name}' asignada al equipo '{team.team_name}'",
+            "team_id": team_id,
+            "training_id": training_id,
+            "instructor_id": instructor_id,
+            "summary": {
+                "assignments_created": len(assignments_created),
+                "assignments_skipped": len(assignments_skipped),
+                "total_clients": len(team_clients)
+            },
+            "details": {
+                "created": assignments_created,
+                "skipped": assignments_skipped
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al asignar capacitación al equipo: {str(e)}")
+
+# ENDPOINTS PARA MATERIALES DE APOYO
+
+@app.get("/api/v1/training-materials", response_model=List[schemas.TrainingMaterial], tags=["Training Materials"])
+def get_training_materials(instructor_id: int = None, training_id: int = None, db: Session = Depends(get_db)):
+    """
+    Obtener materiales de apoyo con filtros opcionales
+    """
+    query = db.query(models.TrainingMaterial).filter(models.TrainingMaterial.material_status == 'A')
+    
+    if instructor_id:
+        query = query.filter(models.TrainingMaterial.instructor_id == instructor_id)
+    
+    if training_id:
+        query = query.filter(models.TrainingMaterial.training_id == training_id)
+    
+    return query.all()
+
+@app.get("/api/v1/training-materials/{material_id}", response_model=schemas.TrainingMaterial, tags=["Training Materials"])
+def get_training_material(material_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener un material específico por ID
+    """
+    material = db.query(models.TrainingMaterial).filter(
+        models.TrainingMaterial.material_id == material_id,
+        models.TrainingMaterial.material_status == 'A'
+    ).first()
+    
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+    
+    return material
+
+@app.post("/api/v1/training-materials", response_model=schemas.TrainingMaterial, tags=["Training Materials"])
+def create_training_material(material_data: schemas.TrainingMaterialCreate, instructor_id: int, db: Session = Depends(get_db)):
+    """
+    Crear un nuevo material de apoyo
+    """
+    # Verificar que el instructor existe y tiene el rol correcto
+    instructor = db.query(models.User).filter(
+        models.User.user_id == instructor_id,
+        models.User.user_role == 4  # Rol instructor
+    ).first()
+    
+    if not instructor:
+        raise HTTPException(status_code=404, detail="Instructor no encontrado o no tiene el rol correcto")
+    
+    # Verificar que la capacitación existe
+    training = db.query(models.Training).filter(
+        models.Training.training_id == material_data.training_id,
+        models.Training.training_status == 'A'
+    ).first()
+    
+    if not training:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+    
+    # Verificar que el instructor tiene asignaciones en esta capacitación
+    has_assignment = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.training_id == material_data.training_id,
+        models.UserTrainingAssignment.instructor_id == instructor_id
+    ).first()
+    
+    if not has_assignment:
+        raise HTTPException(status_code=403, detail="El instructor no tiene asignaciones en esta capacitación")
+    
+    # Crear el material
+    material = models.TrainingMaterial(
+        training_id=material_data.training_id,
+        instructor_id=instructor_id,
+        material_title=material_data.material_title,
+        material_description=material_data.material_description,
+        material_url=material_data.material_url,
+        material_type=material_data.material_type
+    )
+    
+    db.add(material)
+    db.commit()
+    db.refresh(material)
+    
+    return material
+
+@app.put("/api/v1/training-materials/{material_id}", response_model=schemas.TrainingMaterial, tags=["Training Materials"])
+def update_training_material(material_id: int, material_data: schemas.TrainingMaterialUpdate, instructor_id: int, db: Session = Depends(get_db)):
+    """
+    Actualizar un material de apoyo
+    """
+    # Obtener el material
+    material = db.query(models.TrainingMaterial).filter(
+        models.TrainingMaterial.material_id == material_id,
+        models.TrainingMaterial.material_status == 'A'
+    ).first()
+    
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+    
+    # Verificar que el instructor es el propietario del material
+    if material.instructor_id != instructor_id:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar este material")
+    
+    # Actualizar campos
+    if material_data.material_title:
+        material.material_title = material_data.material_title
+    if material_data.material_description is not None:
+        material.material_description = material_data.material_description
+    if material_data.material_url:
+        material.material_url = material_data.material_url
+    if material_data.material_type:
+        material.material_type = material_data.material_type
+    
+    db.commit()
+    db.refresh(material)
+    
+    return material
+
+@app.delete("/api/v1/training-materials/{material_id}", tags=["Training Materials"])
+def delete_training_material(material_id: int, instructor_id: int, db: Session = Depends(get_db)):
+    """
+    Eliminar (inactivar) un material de apoyo
+    """
+    # Obtener el material
+    material = db.query(models.TrainingMaterial).filter(
+        models.TrainingMaterial.material_id == material_id,
+        models.TrainingMaterial.material_status == 'A'
+    ).first()
+    
+    if not material:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+    
+    # Verificar que el instructor es el propietario del material
+    if material.instructor_id != instructor_id:
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar este material")
+    
+    # Inactivar el material
+    material.material_status = 'I'
+    db.commit()
+    
+    return {"message": "Material eliminado exitosamente"}
+
+@app.get("/api/v1/instructors/{instructor_id}/assigned-trainings", tags=["Training Materials"])
+def get_instructor_assigned_trainings(instructor_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener capacitaciones asignadas a un instructor específico
+    """
+    # Verificar que el instructor existe
+    instructor = db.query(models.User).filter(
+        models.User.user_id == instructor_id,
+        models.User.user_role == 4
+    ).first()
+    
+    if not instructor:
+        raise HTTPException(status_code=404, detail="Instructor no encontrado")
+    
+    # Obtener capacitaciones donde este instructor está asignado
+    assigned_trainings = db.query(models.Training).join(
+        models.UserTrainingAssignment,
+        models.Training.training_id == models.UserTrainingAssignment.training_id
+    ).filter(
+        models.UserTrainingAssignment.instructor_id == instructor_id,
+        models.Training.training_status == 'A'
+    ).distinct().all()
+    
+    return assigned_trainings
+
+@app.post("/api/v1/teams/{team_id}/assign-training-to-clients", tags=["Teams"])
+def assign_training_to_specific_clients(team_id: int, assignment_data: dict, db: Session = Depends(get_db)):
+    """
+    Asignar una capacitación a clientes específicos de un equipo
+    """
+    training_id = assignment_data.get("training_id")
+    instructor_id = assignment_data.get("instructor_id")  # Opcional
+    client_ids = assignment_data.get("client_ids", [])  # Lista de IDs de clientes
+    
+    if not training_id:
+        raise HTTPException(status_code=400, detail="training_id es requerido")
+    
+    if not client_ids:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos un cliente")
+    
+    # Verificar que el equipo existe y está activo
+    team = db.query(models.Team).filter(
+        models.Team.team_id == team_id,
+        models.Team.team_status == 'A'
+    ).first()
+    
+    if not team:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    # Verificar que la capacitación existe
+    training = db.query(models.Training).filter(
+        models.Training.training_id == training_id,
+        models.Training.training_status == 'A'
+    ).first()
+    
+    if not training:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+    
+    # Verificar instructor si se proporciona
+    if instructor_id:
+        instructor = db.query(models.User).filter(
+            models.User.user_id == instructor_id,
+            models.User.user_role == 4  # Rol instructor
+        ).first()
+        
+        if not instructor:
+            raise HTTPException(status_code=404, detail="Instructor no encontrado o no tiene el rol correcto")
+    
+    # Verificar que todos los clientes pertenecen al equipo
+    team_client_ids = db.query(models.TeamMember.user_id).filter(
+        models.TeamMember.team_id == team_id,
+        models.TeamMember.member_role == 'client',
+        models.TeamMember.member_status == 'A',
+        models.TeamMember.user_id.in_(client_ids)
+    ).all()
+    
+    valid_client_ids = [row[0] for row in team_client_ids]
+    invalid_clients = set(client_ids) - set(valid_client_ids)
+    
+    if invalid_clients:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Los siguientes clientes no pertenecen al equipo o no están activos: {list(invalid_clients)}"
+        )
+    
+    assignments_created = []
+    assignments_skipped = []
+    
+    for client_id in valid_client_ids:
+        # Verificar si el usuario ya tiene esta capacitación asignada
+        existing_assignment = db.query(models.UserTrainingAssignment).filter(
+            models.UserTrainingAssignment.user_id == client_id,
+            models.UserTrainingAssignment.training_id == training_id,
+            models.UserTrainingAssignment.assignment_status.in_(['assigned', 'in_progress'])
+        ).first()
+        
+        if existing_assignment:
+            assignments_skipped.append({
+                "user_id": client_id,
+                "reason": "Ya tiene esta capacitación asignada"
+            })
+            continue
+        
+        # Crear nueva asignación
+        assignment = models.UserTrainingAssignment(
+            user_id=client_id,
+            training_id=training_id,
+            instructor_id=instructor_id,
+            assignment_status='assigned'
+        )
+        
+        db.add(assignment)
+        assignments_created.append({
+            "user_id": client_id,
+            "assignment_id": None  # Se actualizará después del commit
+        })
+    
+    try:
+        db.commit()
+        
+        return {
+            "message": f"Capacitación '{training.training_name}' asignada a {len(assignments_created)} clientes del equipo '{team.team_name}'",
+            "team_id": team_id,
+            "training_id": training_id,
+            "instructor_id": instructor_id,
+            "summary": {
+                "assignments_created": len(assignments_created),
+                "assignments_skipped": len(assignments_skipped),
+                "total_clients_selected": len(client_ids)
+            },
+            "details": {
+                "created": assignments_created,
+                "skipped": assignments_skipped
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al crear las asignaciones: {str(e)}")
+
+# ================================
+# ENDPOINTS PARA PROGRESO DE TECNOLOGÍAS
+# ================================
+
+@app.get("/api/v1/user-technology-progress/assignment/{assignment_id}", response_model=List[schemas.UserTechnologyProgress], tags=["Progress"])
+def get_technology_progress_by_assignment(assignment_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener progreso de tecnologías para una asignación específica
+    """
+    # Verificar que la asignación existe
+    assignment = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.assignment_id == assignment_id
+    ).first()
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    
+    # Obtener progreso existente
+    progress = db.query(models.UserTechnologyProgress).filter(
+        models.UserTechnologyProgress.assignment_id == assignment_id
+    ).all()
+    
+    return progress
+
+@app.post("/api/v1/user-technology-progress", response_model=schemas.UserTechnologyProgress, tags=["Progress"])
+def create_technology_progress(progress_data: schemas.UserTechnologyProgressCreate, db: Session = Depends(get_db)):
+    """
+    Crear o actualizar progreso de tecnología
+    """
+    # Verificar si ya existe progreso para esta tecnología y asignación
+    existing_progress = db.query(models.UserTechnologyProgress).filter(
+        models.UserTechnologyProgress.assignment_id == progress_data.assignment_id,
+        models.UserTechnologyProgress.technology_id == progress_data.technology_id
+    ).first()
+    
+    if existing_progress:
+        # Actualizar progreso existente
+        existing_progress.is_completed = progress_data.is_completed
+        if progress_data.is_completed == 'Y':
+            existing_progress.completed_at = datetime.utcnow()
+        else:
+            existing_progress.completed_at = None
+        
+        db.commit()
+        db.refresh(existing_progress)
+        return existing_progress
+    else:
+        # Crear nuevo progreso
+        progress = models.UserTechnologyProgress(
+            assignment_id=progress_data.assignment_id,
+            technology_id=progress_data.technology_id,
+            is_completed=progress_data.is_completed,
+            completed_at=datetime.utcnow() if progress_data.is_completed == 'Y' else None
+        )
+        
+        db.add(progress)
+        db.commit()
+        db.refresh(progress)
+        return progress
+
+@app.put("/api/v1/user-technology-progress/{progress_id}", response_model=schemas.UserTechnologyProgress, tags=["Progress"])
+def update_technology_progress(progress_id: int, progress_data: schemas.UserTechnologyProgressUpdate, db: Session = Depends(get_db)):
+    """
+    Actualizar progreso de tecnología por ID
+    """
+    progress = db.query(models.UserTechnologyProgress).filter(
+        models.UserTechnologyProgress.progress_id == progress_id
+    ).first()
+    
+    if not progress:
+        raise HTTPException(status_code=404, detail="Progreso no encontrado")
+    
+    progress.is_completed = progress_data.is_completed
+    if progress_data.is_completed == 'Y':
+        progress.completed_at = datetime.utcnow()
+    else:
+        progress.completed_at = None
+    
+    db.commit()
+    db.refresh(progress)
+    return progress
+
+# ================================
+# ENDPOINTS PARA PROGRESO DE MATERIALES
+# ================================
+
+@app.get("/api/v1/user-material-progress/assignment/{assignment_id}", response_model=List[schemas.UserMaterialProgress], tags=["Progress"])
+def get_material_progress_by_assignment(assignment_id: int, db: Session = Depends(get_db)):
+    """
+    Obtener progreso de materiales para una asignación específica
+    """
+    # Verificar que la asignación existe
+    assignment = db.query(models.UserTrainingAssignment).filter(
+        models.UserTrainingAssignment.assignment_id == assignment_id
+    ).first()
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    
+    # Obtener progreso existente
+    progress = db.query(models.UserMaterialProgress).filter(
+        models.UserMaterialProgress.assignment_id == assignment_id
+    ).all()
+    
+    return progress
+
+@app.post("/api/v1/user-material-progress", response_model=schemas.UserMaterialProgress, tags=["Progress"])
+def create_material_progress(progress_data: schemas.UserMaterialProgressCreate, db: Session = Depends(get_db)):
+    """
+    Crear o actualizar progreso de material
+    """
+    # Verificar si ya existe progreso para este material y usuario
+    existing_progress = db.query(models.UserMaterialProgress).filter(
+        models.UserMaterialProgress.user_id == progress_data.user_id,
+        models.UserMaterialProgress.material_id == progress_data.material_id,
+        models.UserMaterialProgress.assignment_id == progress_data.assignment_id
+    ).first()
+    
+    if existing_progress:
+        # Actualizar progreso existente
+        existing_progress.is_completed = progress_data.is_completed
+        if progress_data.is_completed == 'Y':
+            existing_progress.completed_at = datetime.utcnow()
+        else:
+            existing_progress.completed_at = None
+        
+        db.commit()
+        db.refresh(existing_progress)
+        return existing_progress
+    else:
+        # Crear nuevo progreso
+        progress = models.UserMaterialProgress(
+            user_id=progress_data.user_id,
+            material_id=progress_data.material_id,
+            assignment_id=progress_data.assignment_id,
+            is_completed=progress_data.is_completed,
+            completed_at=datetime.utcnow() if progress_data.is_completed == 'Y' else None
+        )
+        
+        db.add(progress)
+        db.commit()
+        db.refresh(progress)
+        return progress
+
+@app.put("/api/v1/user-material-progress/{progress_id}", response_model=schemas.UserMaterialProgress, tags=["Progress"])
+def update_material_progress(progress_id: int, progress_data: schemas.UserMaterialProgressUpdate, db: Session = Depends(get_db)):
+    """
+    Actualizar progreso de material por ID
+    """
+    progress = db.query(models.UserMaterialProgress).filter(
+        models.UserMaterialProgress.progress_id == progress_id
+    ).first()
+    
+    if not progress:
+        raise HTTPException(status_code=404, detail="Progreso no encontrado")
+    
+    progress.is_completed = progress_data.is_completed
+    if progress_data.is_completed == 'Y':
+        progress.completed_at = datetime.utcnow()
+    else:
+        progress.completed_at = None
+    
+    db.commit()
+    db.refresh(progress)
+    return progress

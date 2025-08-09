@@ -16,6 +16,10 @@ import SettingsPage from './pages/SettingsPage';
 import CourseManagementPage from './pages/CourseManagementPage';
 import CourseAssignmentsPage from './pages/CourseAssignmentsPage';
 import { CapacitacionesPage } from './pages/CapacitacionesPage';
+import TeamsPage from './pages/TeamsPage';
+import MyTeamPage from './pages/MyTeamPage';
+import MaterialsPage from './pages/MaterialsPage';
+import MyCoursesPage from './pages/MyCoursesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +40,26 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+const DefaultRedirect: React.FC = () => {
+  const { user } = useAuthStore();
+  
+  if (!user) return <Navigate to="/login" replace />;
+  
+  // Redirigir según el rol del usuario
+  switch (user.role.role_id) {
+    case 1: // Administrador
+      return <Navigate to="/users" replace />;
+    case 2: // Supervisor
+      return <Navigate to="/my-team" replace />;
+    case 3: // Cliente
+      return <Navigate to="/my-courses" replace />;
+    case 4: // Instructor
+      return <Navigate to="/calendar" replace />;
+    default:
+      return <Navigate to="/users" replace />;
+  }
+};
+
 const App: React.FC = () => {
   const { loadUserData, isAuthenticated } = useAuthStore();
 
@@ -51,7 +75,7 @@ const App: React.FC = () => {
             <Route
               path="/login"
               element={
-                isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+                isAuthenticated ? <DefaultRedirect /> : <LoginPage />
               }
             />
             <Route
@@ -62,22 +86,23 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route index element={<DefaultRedirect />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="courses" element={<CoursesPage />} />
               <Route path="/course-management" element={<CourseManagementPage />} />
               <Route path="users" element={<UserManagementPage />} />
-              <Route path="my-team" element={<SupervisorPage />} />
-              <Route path="my-courses" element={<ClientPage />} />
+              <Route path="teams" element={<TeamsPage />} />
+              <Route path="my-team" element={<MyTeamPage />} />
+              <Route path="my-courses" element={<MyCoursesPage />} />
               <Route path="calendar" element={<InstructorPage />} />
-              <Route path="materials" element={<InstructorPage />} />
+              <Route path="materials" element={<MaterialsPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="/course-assignments" element={<CourseAssignmentsPage />} />
               <Route path="capacitaciones" element={<CapacitacionesPage />} />
 
             </Route>
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<DefaultRedirect />} />
           </Routes>
           <Toaster
             position="top-right"
