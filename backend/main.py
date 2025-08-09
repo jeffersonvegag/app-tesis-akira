@@ -1296,3 +1296,128 @@ def update_material_progress(progress_id: int, progress_data: schemas.UserMateri
     db.commit()
     db.refresh(progress)
     return progress
+#dashboard powerbi
+@app.get("/api/v1/powerbi/dashboard-data", tags=["Power BI"])
+def get_dashboard_data(db: Session = Depends(get_db)):
+    """
+    Endpoint consolidado para Power BI con todos los datos necesarios para dashboards
+    """
+    try:
+        # Consulta principal con todas las relaciones
+        assignments = db.query(models.UserTrainingAssignment).options(
+            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person).joinedload(models.Person.gender),
+            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.role),
+            joinedload(models.UserTrainingAssignment.training).joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology),
+            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.person).joinedload(models.Person.gender),
+            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.role),
+            joinedload(models.UserTrainingAssignment.technology_progress).joinedload(models.UserTechnologyProgress.technology)
+        ).all()
+        
+        # Obtener equipos con miembros
+        teams = db.query(models.Team).filter(models.Team.team_status == 'A').options(
+            joinedload(models.Team.supervisor).joinedload(models.User.person),
+            joinedload(models.Team.team_members).joinedload(models.TeamMember.user).joinedload(models.User.person)
+        ).all()
+        
+        # Obtener materiales con progreso
+        materials = db.query(models.TrainingMaterial).filter(models.TrainingMaterial.material_status == 'A').options(
+            joinedload(models.TrainingMaterial.training),
+            joinedload(models.TrainingMaterial.instructor).joinedload(models.User.person)
+        ).all()
+        
+        # Transformar datos para Power BI
+        dashboard_data = []
+        
+        for assignment in assignments:
+            # Obtener progreso de tecnologías para esta asignación
+            tech_progress = {prog.technology.technology_name: prog.is_completed == 'Y' 
+                           for prog in assignment.technology_progress}
+            
+            # Obtener progreso de materiales
+            material_progress = db.query(models.UserMaterialProgress).filter(
+                models.UserMaterialProgress.assignment_id == assignment.assignment_id
+            ).all()
+            
+            materials_completed = sum(1 for mp in material_progress if mp.is_completed == 'Y')
+            total_materials = len(material_progress) if material_progress else 0
+            
+            # Obtener equipo del usuario
+            user_team = db.query(models.TeamMember).filter(
+                models.TeamMember.user_id == assignment.user_id,
+                models.TeamMember.member_status == 'A'
+            ).first()
+            
+            team_info = None
+            if user_team and user_team.team:
+                team_info = {
+                    "team_id": user_team.team.team_id,
+                    "team_name": user_team.team.team_name,
+                    "supervisor_name": f"{user_team.team.supervisor.person.person_first_name} {user_team.team.supervisor.person.person_last_name}"
+                }
+            
+            # Construir registro consolidado
+            record = {
+                # Información de la asignación
+                "assignment_id": assignment.assignment_id,
+                "assignment_status": assignment.assignment_status,
+                "assignment_created_at": assignment.assignment_created_at.isoformat(),
+                "completion_percentage": float(assignment.completion_percentage),
+                
+                # Información del usuario/estudiante
+                "user_id": assignment.user_id,
+                "user_username": assignment.user.user_username,
+                "user_full_name": f"{assignment.user.person.person_first_name} {assignment.user.person.person_last_name}",
+                "user_email": assignment.user.person.person_email,
+                "user_gender": assignment.user.person.gender.gender_name,
+                "user_role": assignment.user.role.role_name,
+                
+                # Información de la capacitación
+                "training_id": assignment.training_id,
+                "training_name": assignment.training.training_name,
+                "training_description": assignment.training.training_description or "",
+                
+                # Información del instructor
+                "instructor_id": assignment.instructor_id,
+                "instructor_name": f"{assignment.instructor.person.person_first_name} {assignment.instructor.person.person_last_name}" if assignment.instructor else None,
+                "instructor_email": assignment.instructor.person.person_email if assignment.instructor else None,
+                
+                # Información del equipo
+                "team_info": team_info,
+                
+                # Tecnologías de la capacitación
+                "technologies": [tt.technology.technology_name for tt in assignment.training.training_technologies],
+                "technologies_count": len(assignment.training.training_technologies),
+                
+                # Progreso de tecnologías
+                "technology_progress": tech_progress,
+                "technologies_completed": sum(1 for completed in tech_progress.values() if completed),
+                "technology_completion_rate": (sum(1 for completed in tech_progress.values() if completed) / len(tech_progress) * 100) if tech_progress else 0,
+                
+                # Progreso de materiales
+                "materials_completed": materials_completed,
+                "total_materials": total_materials,
+                "material_completion_rate": (materials_completed / total_materials * 100) if total_materials > 0 else 0,
+                
+                # Fechas para análisis temporal
+                "created_year": assignment.assignment_created_at.year,
+                "created_month": assignment.assignment_created_at.month,
+                "created_quarter": f"Q{((assignment.assignment_created_at.month - 1) // 3) + 1}",
+                "created_month_name": assignment.assignment_created_at.strftime("%B")
+            }
+            
+            dashboard_data.append(record)
+        
+        return {
+            "data": dashboard_data,
+            "metadata": {
+                "total_assignments": len(dashboard_data),
+                "total_users": len(set(record["user_id"] for record in dashboard_data)),
+                "total_trainings": len(set(record["training_id"] for record in dashboard_data)),
+                "total_teams": len(teams),
+                "total_materials": len(materials),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener datos del dashboard: {str(e)}")
