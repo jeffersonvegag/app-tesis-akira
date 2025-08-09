@@ -50,11 +50,11 @@ const DefaultRedirect: React.FC = () => {
     case 1: // Administrador
       return <Navigate to="/users" replace />;
     case 2: // Supervisor
-      return <Navigate to="/my-team" replace />;
+      return <Navigate to="/teams" replace />;
     case 3: // Cliente
       return <Navigate to="/my-courses" replace />;
     case 4: // Instructor
-      return <Navigate to="/calendar" replace />;
+      return <Navigate to="/materials" replace />;
     default:
       return <Navigate to="/users" replace />;
   }

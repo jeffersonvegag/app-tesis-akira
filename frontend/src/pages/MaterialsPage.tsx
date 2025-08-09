@@ -61,14 +61,13 @@ const MaterialsPage: React.FC = () => {
     material_type: 'link',
   });
 
-  // Queries - Obtener todas las capacitaciones disponibles para instructores
+  // Queries - Obtener solo las capacitaciones asignadas al instructor
   const { data: assignedTrainings = [], isLoading: loadingTrainings } = useQuery(
-    ['all-trainings-for-instructor'],
+    ['assigned-trainings-for-instructor', user?.user_id],
     async () => {
-      if (!isInstructor) return Promise.resolve([]);
-      // Obtener todas las capacitaciones disponibles
-      const response = await fetch('/api/v1/trainings');
-      return response.json();
+      if (!isInstructor || !user?.user_id) return Promise.resolve([]);
+      // Obtener solo las capacitaciones asignadas a este instructor
+      return trainingMaterialService.getInstructorAssignedTrainings(user.user_id);
     },
     { enabled: !!user?.user_id && isInstructor }
   );

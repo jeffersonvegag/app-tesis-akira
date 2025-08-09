@@ -734,18 +734,15 @@ export const DashboardPage: React.FC = () => {
                 ¡Bienvenido, Instructor!
               </h3>
               <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                Gestiona tu calendario de clases, sube material de apoyo para tus estudiantes
-                y lleva el control de asistencias en las sesiones en vivo.
+                Gestiona las capacitaciones que te han sido asignadas y sube material de apoyo 
+                para tus estudiantes.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                <a href="/calendar" className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors">
-                  Calendario de Clases
-                </a>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg mx-auto">
                 <a href="/materials" className="bg-orange-100 text-orange-800 px-6 py-3 rounded-md hover:bg-orange-200 transition-colors">
-                  Subir Materiales
+                  Gestionar Materiales
                 </a>
-                <a href="/calendar" className="bg-blue-100 text-blue-800 px-6 py-3 rounded-md hover:bg-blue-200 transition-colors">
-                  Gestionar Asistencias
+                <a href="/instructor" className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors">
+                  Panel de Instructor
                 </a>
               </div>
             </div>

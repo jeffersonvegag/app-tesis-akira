@@ -47,6 +47,7 @@ const MyCoursesPage: React.FC = () => {
       onSuccess: () => {
         toast.success('Progreso actualizado');
         queryClient.invalidateQueries(['technology-progress']);
+        queryClient.invalidateQueries(['user-training-assignments']);
       },
       onError: () => {
         toast.error('Error al actualizar progreso');
@@ -60,12 +61,28 @@ const MyCoursesPage: React.FC = () => {
       onSuccess: () => {
         toast.success('Material marcado como completado');
         queryClient.invalidateQueries(['material-progress']);
+        queryClient.invalidateQueries(['user-training-assignments']);
       },
       onError: () => {
         toast.error('Error al actualizar progreso del material');
       },
     }
   );
+
+  // Mutation para actualizar el estado de la asignación (removido para evitar loops infinitos)
+  // const updateAssignmentStatusMutation = useMutation(
+  //   async ({ assignmentId, status, percentage }: { assignmentId: number, status: string, percentage: number }) => {
+  //     // Aquí necesitarías el endpoint para actualizar el assignment_status
+  //     // Por ahora simularemos con una llamada que actualice el completion_percentage
+  //     console.log(`Actualizando assignment ${assignmentId} to status: ${status}, percentage: ${percentage}`);
+  //     return Promise.resolve();
+  //   },
+  //   {
+  //     onSuccess: () => {
+  //       queryClient.invalidateQueries(['user-training-assignments']);
+  //     },
+  //   }
+  // );
 
   const getStatusIcon = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -173,12 +190,19 @@ const MyCoursesPage: React.FC = () => {
     const completedItems = completedTechnologies + completedMaterials + completedUrls;
     const progressPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
     
-    // Auto-completar capacitación si todos los elementos están marcados
+    // Verificar si la capacitación está completa basada en checks (sin auto-actualización)
     const isFullyCompleted = totalItems > 0 && completedItems === totalItems;
-    if (isFullyCompleted && assignment.assignment_status !== 'completed' && assignment.assignment_status !== 'completado') {
-      // Aquí podrías llamar a una función para marcar la capacitación como completada
-      console.log('Capacitación completada automáticamente:', assignment.assignment_id);
-    }
+    
+    // Estado local para evitar múltiples notificaciones del mismo assignment
+    const [completionNotified, setCompletionNotified] = React.useState(new Set<number>());
+    
+    // Notificar completación solo una vez por assignment (sin actualizar backend)
+    React.useEffect(() => {
+      if (isFullyCompleted && !completionNotified.has(assignment.assignment_id)) {
+        setCompletionNotified(prev => new Set(prev).add(assignment.assignment_id));
+        toast.success('¡Todos los elementos completados! Informa a tu supervisor.');
+      }
+    }, [isFullyCompleted, assignment.assignment_id, completionNotified]);
 
     return (
       <Card key={assignment.assignment_id} className="overflow-hidden hover:shadow-md transition-shadow">
@@ -231,7 +255,7 @@ const MyCoursesPage: React.FC = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   {completedItems} de {totalItems} elementos completados
                   {isFullyCompleted && (
-                    <span className="text-green-600 font-medium ml-2">- ¡Capacitación lista para marcar como completada!</span>
+                    <span className="text-green-600 font-medium ml-2">- ¡Todos los elementos completados!</span>
                   )}
                 </p>
               </div>
@@ -452,30 +476,19 @@ const MyCoursesPage: React.FC = () => {
               <FileText className="w-4 h-4" />
               <span>Ver Materiales</span>
             </Button>
-
-            {assignment.assignment_status?.toLowerCase() === 'not_started' || assignment.assignment_status?.toLowerCase() === 'no_iniciado' || !assignment.assignment_status ? (
-              <Button
-                size="sm"
-                className="flex items-center space-x-2 bg-green-600 text-white hover:bg-green-700"
-                onClick={() => {
-                  console.log('Iniciar capacitación:', assignment.assignment_id);
-                }}
-              >
-                <Play className="w-4 h-4" />
-                <span>Iniciar Capacitación</span>
-              </Button>
-            ) : assignment.assignment_status?.toLowerCase() === 'in_progress' || assignment.assignment_status?.toLowerCase() === 'en_progreso' ? (
-              <Button
-                size="sm"
-                className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
-                onClick={() => {
-                  console.log('Continuar capacitación:', assignment.assignment_id);
-                }}
-              >
-                <Play className="w-4 h-4" />
-                <span>Continuar</span>
-              </Button>
-            ) : null}
+            
+            {/* Indicador de progreso visual */}
+            {isFullyCompleted ? (
+              <div className="flex items-center space-x-2 px-3 py-2 bg-green-100 text-green-700 rounded-md text-sm font-medium">
+                <CheckCircle className="w-4 h-4" />
+                <span>¡Todos los elementos completados! Contacta a tu supervisor</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-md text-sm font-medium">
+                <Clock className="w-4 h-4" />
+                <span>{completedItems}/{totalItems} elementos completados</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -504,7 +517,7 @@ const MyCoursesPage: React.FC = () => {
       </div>
 
       {/* Estadísticas rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
@@ -523,7 +536,13 @@ const MyCoursesPage: React.FC = () => {
               <CheckCircle className="w-8 h-8 text-green-600" />
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {assignments.filter(a => a.assignment_status?.toLowerCase() === 'completed' || a.assignment_status?.toLowerCase() === 'completado').length}
+                  {(() => {
+                    // Contar completadas basado en el status del backend únicamente
+                    return assignments.filter(assignment => {
+                      return assignment.assignment_status?.toLowerCase() === 'completed' || 
+                             assignment.assignment_status?.toLowerCase() === 'completado';
+                    }).length;
+                  })()}
                 </p>
                 <p className="text-sm text-gray-600">Completadas</p>
               </div>
@@ -534,24 +553,17 @@ const MyCoursesPage: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
-              <Play className="w-8 h-8 text-blue-600" />
+              <Clock className="w-8 h-8 text-orange-600" />
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {assignments.filter(a => a.assignment_status?.toLowerCase() === 'in_progress' || a.assignment_status?.toLowerCase() === 'en_progreso').length}
-                </p>
-                <p className="text-sm text-gray-600">En Progreso</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <Clock className="w-8 h-8 text-gray-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {assignments.filter(a => a.assignment_status?.toLowerCase() === 'not_started' || a.assignment_status?.toLowerCase() === 'no_iniciado' || !a.assignment_status).length}
+                  {(() => {
+                    // Contar pendientes como las que NO están completadas en el backend
+                    const completedCount = assignments.filter(assignment => {
+                      return assignment.assignment_status?.toLowerCase() === 'completed' || 
+                             assignment.assignment_status?.toLowerCase() === 'completado';
+                    }).length;
+                    return assignments.length - completedCount;
+                  })()}
                 </p>
                 <p className="text-sm text-gray-600">Pendientes</p>
               </div>

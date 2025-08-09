@@ -64,12 +64,6 @@ const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, o
       roles: [UserRoles.CLIENT],
     },
     {
-      title: 'Calendario de Clases',
-      icon: GraduationCap,
-      path: '/calendar',
-      roles: [UserRoles.INSTRUCTOR],
-    },
-    {
       title: 'Material de Apoyo',
       icon: BookOpen,
       path: '/materials',
