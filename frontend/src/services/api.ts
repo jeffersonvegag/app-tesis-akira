@@ -127,5 +127,25 @@ export const userService = {
     await api.delete(`/api/v1/users/${id}`);
   },
 };
+// Al final de src/services/api.ts
+export {
+  authService,
+  userService,
+  personService,
+  courseService,
+  careerPlanService,
+  userCareerPlanService,
+  catalogService,
+  courseAssignmentService,
+  trainingService,
+  userTrainingAssignmentService,
+  userTechnologyProgressService,
+  userTrainingStatusService,
+  teamService,  // ← Asegúrate de que esté aquí
+  trainingMaterialService,
+  technologyProgressService,
+  materialProgressService,
+};
 
+export default api;
 // ✅ Y así con TODOS los servicios... (continúa igual pero agregando /api/v1)
