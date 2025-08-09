@@ -40,8 +40,14 @@ import {
   // UserTrainingStatusCreateForm, // Comentar si no lo usas
 } from '@/types';
 
-// ✅ CORREGIR ESTA LÍNEA
-const API_BASE_URL = 'https://app-tesis-akira.onrender.com';
+console.log('🔍 DEBUG API Configuration:');
+console.log('- import.meta:', import.meta);
+console.log('- import.meta.env:', (import.meta as any).env);
+console.log('- VITE_API_URL:', (import.meta as any).env?.VITE_API_URL);
+
+const API_BASE_URL = 'https://app-tesis-akira.onrender.com'; // Hardcoded temporal
+
+console.log('- API_BASE_URL final:', API_BASE_URL);
 
 console.log('🔗 Frontend conectando a backend:', API_BASE_URL); // Para debug
 console.log('🔍 Variables de entorno:');
