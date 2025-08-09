@@ -1,25 +1,17 @@
-# database.py
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import os
-from dotenv import load_dotenv
+from datetime import datetime
+import json
 
-load_dotenv()
+# Por ahora usamos SQLite local y luego sincronizamos con Turso via API
+SQLALCHEMY_DATABASE_URL = "sqlite:///./career_plan.db"
 
-# Configuración para Turso
-DATABASE_URL = os.getenv("DATABASE_URL", "libsql://app-dev-akira-jeffersonvegag.aws-us-east-1.turso.io")
-DATABASE_TOKEN = os.getenv("DATABASE_TOKEN", "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicm8iLCJpYXQiOjE3NTQ3MjIzMzIsImlkIjoiZWUyMzY1ZDUtOTJjMi00Nzk2LThiNzMtN2VkMGUxM2RkYWYxIiwicmlkIjoiMjVlZmJlNGEtNzBiYS00MDc4LTg0YTctZWViNGY4YjQ1MmQ1In0.8TCn-KosFIMXcz64ekeMOzd9SgWsOw-XsxchTR6vn0kUTXghwDzyoidQkSzbfFb0j2M6DZDu8qE5LuSzwSKtBw")
-
-# Para Turso, usamos una conexión especial
 engine = create_engine(
-    f"sqlite+pysqlite:///:memory:",  # Turso es compatible con SQLite
-    connect_args={
-        "check_same_thread": False,
-        "url": DATABASE_URL,
-        "authToken": DATABASE_TOKEN
-    },
-    echo=True
+    SQLALCHEMY_DATABASE_URL, 
+    connect_args={"check_same_thread": False},
+    echo=False
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -31,3 +23,38 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Configuración de Turso para uso posterior
+TURSO_URL = "libsql://app-dev-akira-jeffersonvegag.aws-us-east-1.turso.io"
+TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NTE1MTQ2NjYsImlkIjoiZWUyMzY1ZDUtOTJjMi00Nzk2LThiNzMtN2VkMGUxM2RkYWYxIiwicmlkIjoiMjVlZmJlNGEtNzBiYS00MDc4LTg0YTctZWViNGY4YjQ1MmQ1In0.78a5Alyo26j0m6CLeuY8LrePZFhnNvhs_gi-U8GWeocyRiFKKEY9sIUkxtexEk5bNkFE5w1Fd0YjYXOE_xz3Bw"
+
+# Función para sincronizar con Turso usando HTTP API
+async def sync_with_turso_http(query, params=None):
+    """Ejecutar consulta en Turso usando HTTP API"""
+    import requests
+    
+    url = f"https://app-dev-akira-jeffersonvegag.aws-us-east-1.turso.io/v2/pipeline"
+    
+    headers = {
+        "Authorization": f"Bearer {TURSO_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "requests": [
+            {
+                "type": "execute",
+                "stmt": {
+                    "sql": query,
+                    "args": params or []
+                }
+            }
+        ]
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        return response.json()
+    except Exception as e:
+        print(f"Error sincronizando con Turso: {e}")
+        return None
