@@ -1297,625 +1297,312 @@ def update_material_progress(progress_id: int, progress_data: schemas.UserMateri
     db.refresh(progress)
     return progress
 #dashboard powerbi
-@app.get("/api/v1/powerbi/complete-data", tags=["Power BI"])
-def get_complete_powerbi_data(db: Session = Depends(get_db)):
+# Agregar estos imports al inicio
+from fastapi.responses import JSONResponse
+import json
+
+# Agregar estos endpoints al final de tu main.py
+
+# ================================
+# ENDPOINTS ESPECÍFICOS PARA POWER BI
+# ================================
+
+@app.get("/api/v1/powerbi/users-summary", tags=["Power BI"])
+def get_users_summary_for_powerbi(db: Session = Depends(get_db)):
     """
-    Endpoint COMPLETO para Power BI - TODOS los datos de la base de datos consolidados
+    Endpoint optimizado para Power BI - Resumen de usuarios
     """
     try:
-        # ====================================
-        # 1. DATOS MAESTROS - CATÁLOGOS
-        # ====================================
-        
-        # Géneros
-        genders = db.query(models.Gender).all()
-        genders_data = [{"gender_id": g.gender_id, "gender_name": g.gender_name} for g in genders]
-        
-        # Roles
-        roles = db.query(models.Role).all()
-        roles_data = [{"role_id": r.role_id, "role_name": r.role_name, "role_description": r.role_description} for r in roles]
-        
-        # Tecnologías
-        technologies = db.query(models.Technology).all()
-        technologies_data = [{"technology_id": t.technology_id, "technology_name": t.technology_name} for t in technologies]
-        
-        # ====================================
-        # 2. PERSONAS Y USUARIOS COMPLETOS
-        # ====================================
-        
-        users_complete = db.query(models.User).options(
-            joinedload(models.User.person).joinedload(models.Person.gender),
-            joinedload(models.User.role)
+        users_data = db.query(
+            models.User.user_id,
+            models.User.user_username,
+            models.Person.person_first_name,
+            models.Person.person_last_name,
+            models.Person.person_email,
+            models.Person.person_dni,
+            models.Gender.gender_name,
+            models.Role.role_name,
+            models.User.created_at
+        ).join(
+            models.Person, models.User.person_id == models.Person.person_id
+        ).join(
+            models.Gender, models.Person.person_gender == models.Gender.gender_id
+        ).join(
+            models.Role, models.User.user_role == models.Role.role_id
         ).all()
-        
-        users_data = []
-        for user in users_complete:
-            users_data.append({
-                "user_id": user.user_id,
-                "username": user.user_username,
-                "user_status": user.user_status,
-                "user_created_at": user.user_created_at.isoformat(),
-                "person_id": user.person.person_id,
-                "person_dni": user.person.person_dni,
-                "first_name": user.person.person_first_name,
-                "last_name": user.person.person_last_name,
-                "full_name": f"{user.person.person_first_name} {user.person.person_last_name}",
-                "email": user.person.person_email,
-                "person_status": user.person.person_status,
-                "person_created_at": user.person.person_created_at.isoformat(),
-                "gender_id": user.person.gender.gender_id,
-                "gender_name": user.person.gender.gender_name,
-                "role_id": user.role.role_id,
-                "role_name": user.role.role_name,
-                "role_description": user.role.role_description
+
+        result = []
+        for row in users_data:
+            result.append({
+                "user_id": row.user_id,
+                "username": row.user_username,
+                "full_name": f"{row.person_first_name} {row.person_last_name}",
+                "first_name": row.person_first_name,
+                "last_name": row.person_last_name,
+                "email": row.person_email,
+                "dni": row.person_dni,
+                "gender": row.gender_name,
+                "role": row.role_name,
+                "created_at": row.created_at.isoformat() if row.created_at else None
             })
         
-        # ====================================
-        # 3. CAPACITACIONES COMPLETAS
-        # ====================================
+        return {"data": result, "count": len(result)}
         
-        trainings_complete = db.query(models.Training).options(
-            joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology)
-        ).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.get("/api/v1/powerbi/trainings-summary", tags=["Power BI"])
+def get_trainings_summary_for_powerbi(db: Session = Depends(get_db)):
+    """
+    Endpoint optimizado para Power BI - Resumen de capacitaciones
+    """
+    try:
+        # Obtener capacitaciones con conteo de asignaciones
+        trainings_query = db.query(
+            models.Training.training_id,
+            models.Training.training_name,
+            models.Training.training_description,
+            models.Training.created_at
+        ).filter(models.Training.training_status == 'A')
         
-        trainings_data = []
-        training_technologies_data = []
-        
-        for training in trainings_complete:
-            trainings_data.append({
-                "training_id": training.training_id,
-                "training_name": training.training_name,
-                "training_description": training.training_description or "",
-                "training_status": training.training_status,
-                "training_created_at": training.training_created_at.isoformat(),
-                "technologies_count": len(training.training_technologies),
-                "technologies_list": [tt.technology.technology_name for tt in training.training_technologies]
-            })
-            
-            # Relación capacitación-tecnología
-            for tt in training.training_technologies:
-                training_technologies_data.append({
-                    "training_technology_id": tt.training_technology_id,
-                    "training_id": tt.training_id,
-                    "technology_id": tt.technology_id,
-                    "training_name": training.training_name,
-                    "technology_name": tt.technology.technology_name,
-                    "created_at": tt.created_at.isoformat()
-                })
-        
-        # ====================================
-        # 4. EQUIPOS COMPLETOS
-        # ====================================
-        
-        teams_complete = db.query(models.Team).filter(models.Team.team_status == 'A').options(
-            joinedload(models.Team.supervisor).joinedload(models.User.person),
-            joinedload(models.Team.team_members).joinedload(models.TeamMember.user).joinedload(models.User.person).joinedload(models.Person.gender),
-            joinedload(models.Team.team_members).joinedload(models.TeamMember.user).joinedload(models.User.role)
-        ).all()
-        
-        teams_data = []
-        team_members_data = []
-        
-        for team in teams_complete:
-            teams_data.append({
-                "team_id": team.team_id,
-                "team_name": team.team_name,
-                "team_description": team.team_description or "",
-                "team_status": team.team_status,
-                "team_created_at": team.team_created_at.isoformat(),
-                "supervisor_id": team.supervisor_id,
-                "supervisor_name": f"{team.supervisor.person.person_first_name} {team.supervisor.person.person_last_name}",
-                "supervisor_email": team.supervisor.person.person_email,
-                "total_members": len([m for m in team.team_members if m.member_status == 'A']),
-                "total_instructors": len([m for m in team.team_members if m.member_role == 'instructor' and m.member_status == 'A']),
-                "total_clients": len([m for m in team.team_members if m.member_role == 'client' and m.member_status == 'A'])
-            })
-            
-            # Miembros del equipo
-            for member in team.team_members:
-                if member.member_status == 'A':
-                    team_members_data.append({
-                        "team_member_id": member.team_member_id,
-                        "team_id": member.team_id,
-                        "team_name": team.team_name,
-                        "user_id": member.user_id,
-                        "member_role": member.member_role,
-                        "member_status": member.member_status,
-                        "joined_at": member.joined_at.isoformat(),
-                        "user_name": f"{member.user.person.person_first_name} {member.user.person.person_last_name}",
-                        "user_email": member.user.person.person_email,
-                        "user_gender": member.user.person.gender.gender_name,
-                        "user_role_name": member.user.role.role_name
-                    })
-        
-        # ====================================
-        # 5. ASIGNACIONES COMPLETAS
-        # ====================================
-        
-        assignments_complete = db.query(models.UserTrainingAssignment).options(
-            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person).joinedload(models.Person.gender),
-            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.role),
-            joinedload(models.UserTrainingAssignment.training).joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology),
-            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.person),
-            joinedload(models.UserTrainingAssignment.technology_progress).joinedload(models.UserTechnologyProgress.technology)
-        ).all()
-        
-        assignments_data = []
-        
-        for assignment in assignments_complete:
-            # Obtener equipo del usuario
-            user_team_member = db.query(models.TeamMember).filter(
-                models.TeamMember.user_id == assignment.user_id,
-                models.TeamMember.member_status == 'A'
-            ).first()
-            
-            team_info = None
-            if user_team_member:
-                team = db.query(models.Team).filter(models.Team.team_id == user_team_member.team_id).first()
-                if team:
-                    team_info = {
-                        "team_id": team.team_id,
-                        "team_name": team.team_name,
-                        "supervisor_name": f"{team.supervisor.person.person_first_name} {team.supervisor.person.person_last_name}" if team.supervisor else None
-                    }
-            
-            # Progreso de tecnologías
-            tech_progress = {prog.technology.technology_name: prog.is_completed == 'Y' for prog in assignment.technology_progress}
-            technologies_completed = sum(1 for completed in tech_progress.values() if completed)
-            total_technologies = len(tech_progress)
-            
-            # Progreso de materiales para esta asignación
-            materials_progress = db.query(models.UserMaterialProgress).filter(
-                models.UserMaterialProgress.assignment_id == assignment.assignment_id
+        result = []
+        for training in trainings_query.all():
+            # Contar asignaciones por estado
+            assignments = db.query(models.UserTrainingAssignment).filter(
+                models.UserTrainingAssignment.training_id == training.training_id
             ).all()
-            materials_completed = sum(1 for mp in materials_progress if mp.is_completed == 'Y')
-            total_materials = len(materials_progress)
             
-            assignments_data.append({
-                "assignment_id": assignment.assignment_id,
-                "user_id": assignment.user_id,
-                "training_id": assignment.training_id,
-                "instructor_id": assignment.instructor_id,
-                "assignment_status": assignment.assignment_status,
-                "completion_percentage": float(assignment.completion_percentage),
-                "instructor_meeting_link": assignment.instructor_meeting_link or "",
-                "assignment_created_at": assignment.assignment_created_at.isoformat(),
-                
-                # Usuario/Estudiante info
-                "student_username": assignment.user.user_username,
-                "student_full_name": f"{assignment.user.person.person_first_name} {assignment.user.person.person_last_name}",
-                "student_email": assignment.user.person.person_email,
-                "student_gender": assignment.user.person.gender.gender_name,
-                "student_role": assignment.user.role.role_name,
-                "student_dni": assignment.user.person.person_dni,
-                
-                # Capacitación info
-                "training_name": assignment.training.training_name,
-                "training_description": assignment.training.training_description or "",
-                "training_status": assignment.training.training_status,
-                
-                # Instructor info
-                "instructor_name": f"{assignment.instructor.person.person_first_name} {assignment.instructor.person.person_last_name}" if assignment.instructor else None,
-                "instructor_email": assignment.instructor.person.person_email if assignment.instructor else None,
-                
-                # Equipo info
-                "team_id": team_info["team_id"] if team_info else None,
-                "team_name": team_info["team_name"] if team_info else None,
-                "team_supervisor": team_info["supervisor_name"] if team_info else None,
-                
-                # Tecnologías
-                "training_technologies": [tt.technology.technology_name for tt in assignment.training.training_technologies],
-                "total_technologies": total_technologies,
-                "technologies_completed": technologies_completed,
-                "technology_completion_rate": (technologies_completed / total_technologies * 100) if total_technologies > 0 else 0,
-                
-                # Materiales
-                "total_materials": total_materials,
-                "materials_completed": materials_completed,
-                "material_completion_rate": (materials_completed / total_materials * 100) if total_materials > 0 else 0,
-                
-                # Análisis temporal
-                "created_year": assignment.assignment_created_at.year,
-                "created_month": assignment.assignment_created_at.month,
-                "created_day": assignment.assignment_created_at.day,
-                "created_quarter": f"Q{((assignment.assignment_created_at.month - 1) // 3) + 1}",
-                "created_month_name": assignment.assignment_created_at.strftime("%B"),
-                "created_weekday": assignment.assignment_created_at.strftime("%A"),
-                "created_date": assignment.assignment_created_at.date().isoformat()
-            })
-        
-        # ====================================
-        # 6. PROGRESO DE TECNOLOGÍAS DETALLADO
-        # ====================================
-        
-        technology_progress = db.query(models.UserTechnologyProgress).options(
-            joinedload(models.UserTechnologyProgress.assignment).joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person),
-            joinedload(models.UserTechnologyProgress.assignment).joinedload(models.UserTrainingAssignment.training),
-            joinedload(models.UserTechnologyProgress.technology)
-        ).all()
-        
-        technology_progress_data = []
-        for tp in technology_progress:
-            technology_progress_data.append({
-                "progress_id": tp.progress_id,
-                "assignment_id": tp.assignment_id,
-                "technology_id": tp.technology_id,
-                "technology_name": tp.technology.technology_name,
-                "is_completed": tp.is_completed,
-                "completed_at": tp.completed_at.isoformat() if tp.completed_at else None,
-                "created_at": tp.created_at.isoformat(),
-                "user_id": tp.assignment.user_id,
-                "user_name": f"{tp.assignment.user.person.person_first_name} {tp.assignment.user.person.person_last_name}",
-                "training_id": tp.assignment.training_id,
-                "training_name": tp.assignment.training.training_name,
-                "assignment_status": tp.assignment.assignment_status
-            })
-        
-        # ====================================
-        # 7. MATERIALES DE APOYO COMPLETOS
-        # ====================================
-        
-        materials_complete = db.query(models.TrainingMaterial).filter(
-            models.TrainingMaterial.material_status == 'A'
-        ).options(
-            joinedload(models.TrainingMaterial.training),
-            joinedload(models.TrainingMaterial.instructor).joinedload(models.User.person)
-        ).all()
-        
-        materials_data = []
-        for material in materials_complete:
-            materials_data.append({
-                "material_id": material.material_id,
-                "training_id": material.training_id,
-                "training_name": material.training.training_name,
-                "instructor_id": material.instructor_id,
-                "instructor_name": f"{material.instructor.person.person_first_name} {material.instructor.person.person_last_name}",
-                "material_title": material.material_title,
-                "material_description": material.material_description or "",
-                "material_url": material.material_url,
-                "material_type": material.material_type,
-                "material_status": material.material_status,
-                "material_created_at": material.material_created_at.isoformat()
-            })
-        
-        # ====================================
-        # 8. PROGRESO DE MATERIALES DETALLADO
-        # ====================================
-        
-        material_progress = db.query(models.UserMaterialProgress).options(
-            joinedload(models.UserMaterialProgress.user).joinedload(models.User.person),
-            joinedload(models.UserMaterialProgress.material).joinedload(models.TrainingMaterial.training),
-            joinedload(models.UserMaterialProgress.assignment).joinedload(models.UserTrainingAssignment.training)
-        ).all()
-        
-        material_progress_data = []
-        for mp in material_progress:
-            material_progress_data.append({
-                "progress_id": mp.progress_id,
-                "user_id": mp.user_id,
-                "user_name": f"{mp.user.person.person_first_name} {mp.user.person.person_last_name}",
-                "material_id": mp.material_id,
-                "material_title": mp.material.material_title,
-                "material_type": mp.material.material_type,
-                "assignment_id": mp.assignment_id,
-                "training_id": mp.assignment.training_id,
-                "training_name": mp.assignment.training.training_name,
-                "is_completed": mp.is_completed,
-                "completed_at": mp.completed_at.isoformat() if mp.completed_at else None,
-                "created_at": mp.created_at.isoformat()
-            })
-        
-        # ====================================
-        # 9. ESTADÍSTICAS GENERALES
-        # ====================================
-        
-        stats = {
-            "total_users": len(users_data),
-            "total_trainings": len(trainings_data),
-            "total_technologies": len(technologies_data),
-            "total_assignments": len(assignments_data),
-            "total_teams": len(teams_data),
-            "total_materials": len(materials_data),
-            "assignments_completed": len([a for a in assignments_data if a["assignment_status"] == "completed"]),
-            "assignments_in_progress": len([a for a in assignments_data if a["assignment_status"] == "in_progress"]),
-            "assignments_assigned": len([a for a in assignments_data if a["assignment_status"] == "assigned"]),
-            "users_by_role": {role["role_name"]: len([u for u in users_data if u["role_name"] == role["role_name"]]) for role in roles_data},
-            "users_by_gender": {gender["gender_name"]: len([u for u in users_data if u["gender_name"] == gender["gender_name"]]) for gender in genders_data}
-        }
-        
-        # ====================================
-        # RESPUESTA CONSOLIDADA
-        # ====================================
-        
-        return {
-            "metadata": {
-                "generated_at": datetime.utcnow().isoformat(),
-                "total_records": {
-                    "users": len(users_data),
-                    "trainings": len(trainings_data),
-                    "assignments": len(assignments_data),
-                    "teams": len(teams_data),
-                    "team_members": len(team_members_data),
-                    "materials": len(materials_data),
-                    "technology_progress": len(technology_progress_data),
-                    "material_progress": len(material_progress_data)
-                }
-            },
-            "catalog_data": {
-                "genders": genders_data,
-                "roles": roles_data,
-                "technologies": technologies_data
-            },
-            "main_data": {
-                "users": users_data,
-                "trainings": trainings_data,
-                "training_technologies": training_technologies_data,
-                "assignments": assignments_data,
-                "teams": teams_data,
-                "team_members": team_members_data,
-                "materials": materials_data,
-                "technology_progress": technology_progress_data,
-                "material_progress": material_progress_data
-            },
-            "statistics": stats
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener datos completos: {str(e)}")
-
-
-#sin auth
-
-@app.get("/api/v1/public/powerbi-data", tags=["Public"])
-def get_public_powerbi_data(db: Session = Depends(get_db)):
-    """
-    Endpoint PÚBLICO para Power BI - Sin autenticación requerida
-    """
-    try:
-        # Obtener todos los datos sin restricciones de autenticación
-        assignments = db.query(models.UserTrainingAssignment).options(
-            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person).joinedload(models.Person.gender),
-            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.role),
-            joinedload(models.UserTrainingAssignment.training).joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology),
-            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.person)
-        ).all()
-        
-        # Datos de usuarios
-        users = db.query(models.User).options(
-            joinedload(models.User.person).joinedload(models.Person.gender),
-            joinedload(models.User.role)
-        ).all()
-        
-        # Datos de equipos
-        teams = db.query(models.Team).filter(models.Team.team_status == 'A').options(
-            joinedload(models.Team.supervisor).joinedload(models.User.person),
-            joinedload(models.Team.team_members).joinedload(models.TeamMember.user).joinedload(models.User.person)
-        ).all()
-        
-        # Datos de capacitaciones
-        trainings = db.query(models.Training).options(
-            joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology)
-        ).all()
-        
-        # Progreso de tecnologías
-        tech_progress = db.query(models.UserTechnologyProgress).options(
-            joinedload(models.UserTechnologyProgress.technology),
-            joinedload(models.UserTechnologyProgress.assignment)
-        ).all()
-        
-        # Materiales
-        materials = db.query(models.TrainingMaterial).filter(
-            models.TrainingMaterial.material_status == 'A'
-        ).options(
-            joinedload(models.TrainingMaterial.training),
-            joinedload(models.TrainingMaterial.instructor).joinedload(models.User.person)
-        ).all()
-        
-        # Progreso de materiales
-        material_progress = db.query(models.UserMaterialProgress).options(
-            joinedload(models.UserMaterialProgress.user).joinedload(models.User.person),
-            joinedload(models.UserMaterialProgress.material),
-            joinedload(models.UserMaterialProgress.assignment)
-        ).all()
-        
-        # FORMATEAR DATOS PARA POWER BI
-        
-        # 1. Datos consolidados de asignaciones
-        assignments_data = []
-        for assignment in assignments:
-            # Buscar equipo del usuario
-            team_member = db.query(models.TeamMember).filter(
-                models.TeamMember.user_id == assignment.user_id,
-                models.TeamMember.member_status == 'A'
-            ).first()
+            # Obtener tecnologías asociadas
+            technologies = db.query(models.Technology.technology_name).join(
+                models.TrainingTechnology,
+                models.Technology.technology_id == models.TrainingTechnology.technology_id
+            ).filter(
+                models.TrainingTechnology.training_id == training.training_id
+            ).all()
             
-            team_info = None
-            if team_member:
-                team = db.query(models.Team).filter(models.Team.team_id == team_member.team_id).first()
-                if team:
-                    team_info = {
-                        "team_id": team.team_id,
-                        "team_name": team.team_name,
-                        "supervisor_name": f"{team.supervisor.person.person_first_name} {team.supervisor.person.person_last_name}"
-                    }
+            tech_names = [tech.technology_name for tech in technologies]
             
-            # Contar progreso de tecnologías
-            assignment_tech_progress = [tp for tp in tech_progress if tp.assignment_id == assignment.assignment_id]
-            tech_completed = sum(1 for tp in assignment_tech_progress if tp.is_completed == 'Y')
-            tech_total = len(assignment_tech_progress)
+            assignment_stats = {
+                'not_started': len([a for a in assignments if a.assignment_status == 'not_started']),
+                'assigned': len([a for a in assignments if a.assignment_status == 'assigned']),
+                'in_progress': len([a for a in assignments if a.assignment_status == 'in_progress']),
+                'completed': len([a for a in assignments if a.assignment_status == 'completed']),
+                'total': len(assignments)
+            }
             
-            # Contar progreso de materiales
-            assignment_material_progress = [mp for mp in material_progress if mp.assignment_id == assignment.assignment_id]
-            materials_completed = sum(1 for mp in assignment_material_progress if mp.is_completed == 'Y')
-            materials_total = len(assignment_material_progress)
-            
-            assignments_data.append({
-                "assignment_id": assignment.assignment_id,
-                "assignment_status": assignment.assignment_status,
-                "completion_percentage": float(assignment.completion_percentage),
-                "assignment_date": assignment.assignment_created_at.isoformat(),
-                "assignment_year": assignment.assignment_created_at.year,
-                "assignment_month": assignment.assignment_created_at.month,
-                "assignment_quarter": f"Q{((assignment.assignment_created_at.month - 1) // 3) + 1}",
-                
-                # Usuario info
-                "user_id": assignment.user_id,
-                "user_name": f"{assignment.user.person.person_first_name} {assignment.user.person.person_last_name}",
-                "user_email": assignment.user.person.person_email,
-                "user_gender": assignment.user.person.gender.gender_name,
-                "user_role": assignment.user.role.role_name,
-                "user_dni": assignment.user.person.person_dni,
-                
-                # Capacitación info
-                "training_id": assignment.training_id,
-                "training_name": assignment.training.training_name,
-                "training_description": assignment.training.training_description or "",
-                
-                # Instructor info
-                "instructor_id": assignment.instructor_id,
-                "instructor_name": f"{assignment.instructor.person.person_first_name} {assignment.instructor.person.person_last_name}" if assignment.instructor else None,
-                "instructor_email": assignment.instructor.person.person_email if assignment.instructor else None,
-                
-                # Equipo info
-                "team_id": team_info["team_id"] if team_info else None,
-                "team_name": team_info["team_name"] if team_info else None,
-                "team_supervisor": team_info["supervisor_name"] if team_info else None,
-                
-                # Progreso
-                "technologies_total": tech_total,
-                "technologies_completed": tech_completed,
-                "technology_completion_rate": (tech_completed / tech_total * 100) if tech_total > 0 else 0,
-                "materials_total": materials_total,
-                "materials_completed": materials_completed,
-                "material_completion_rate": (materials_completed / materials_total * 100) if materials_total > 0 else 0,
-                
-                # Tecnologías de la capacitación
-                "training_technologies": [tt.technology.technology_name for tt in assignment.training.training_technologies],
-                "training_technologies_count": len(assignment.training.training_technologies)
-            })
-        
-        # 2. Datos de usuarios
-        users_data = []
-        for user in users:
-            # Contar asignaciones del usuario
-            user_assignments = [a for a in assignments if a.user_id == user.user_id]
-            completed_assignments = [a for a in user_assignments if a.assignment_status == 'completed']
-            in_progress_assignments = [a for a in user_assignments if a.assignment_status == 'in_progress']
-            
-            users_data.append({
-                "user_id": user.user_id,
-                "username": user.user_username,
-                "full_name": f"{user.person.person_first_name} {user.person.person_last_name}",
-                "email": user.person.person_email,
-                "gender": user.person.gender.gender_name,
-                "role": user.role.role_name,
-                "dni": user.person.person_dni,
-                "user_status": user.user_status,
-                "created_at": user.user_created_at.isoformat(),
-                "total_assignments": len(user_assignments),
-                "completed_assignments": len(completed_assignments),
-                "in_progress_assignments": len(in_progress_assignments)
-            })
-        
-        # 3. Datos de equipos
-        teams_data = []
-        for team in teams:
-            active_members = [m for m in team.team_members if m.member_status == 'A']
-            instructors = [m for m in active_members if m.member_role == 'instructor']
-            clients = [m for m in active_members if m.member_role == 'client']
-            
-            teams_data.append({
-                "team_id": team.team_id,
-                "team_name": team.team_name,
-                "team_description": team.team_description or "",
-                "supervisor_id": team.supervisor_id,
-                "supervisor_name": f"{team.supervisor.person.person_first_name} {team.supervisor.person.person_last_name}",
-                "supervisor_email": team.supervisor.person.person_email,
-                "total_members": len(active_members),
-                "total_instructors": len(instructors),
-                "total_clients": len(clients),
-                "created_at": team.team_created_at.isoformat()
-            })
-        
-        # 4. Datos de capacitaciones
-        trainings_data = []
-        for training in trainings:
-            training_assignments = [a for a in assignments if a.training_id == training.training_id]
-            
-            trainings_data.append({
+            result.append({
                 "training_id": training.training_id,
                 "training_name": training.training_name,
-                "training_description": training.training_description or "",
-                "training_status": training.training_status,
-                "created_at": training.training_created_at.isoformat(),
-                "technologies": [tt.technology.technology_name for tt in training.training_technologies],
-                "technologies_count": len(training.training_technologies),
-                "total_assignments": len(training_assignments),
-                "completed_assignments": len([a for a in training_assignments if a.assignment_status == 'completed']),
-                "in_progress_assignments": len([a for a in training_assignments if a.assignment_status == 'in_progress'])
+                "training_description": training.training_description,
+                "technologies": ", ".join(tech_names),
+                "technology_count": len(tech_names),
+                "created_at": training.created_at.isoformat() if training.created_at else None,
+                **assignment_stats
             })
         
-        # 5. Progreso detallado de tecnologías
-        tech_progress_data = []
-        for tp in tech_progress:
-            tech_progress_data.append({
-                "progress_id": tp.progress_id,
-                "assignment_id": tp.assignment_id,
-                "technology_id": tp.technology_id,
-                "technology_name": tp.technology.technology_name,
-                "is_completed": tp.is_completed,
-                "completed_at": tp.completed_at.isoformat() if tp.completed_at else None,
-                "created_at": tp.created_at.isoformat()
-            })
-        
-        # 6. Datos de materiales
-        materials_data = []
-        for material in materials:
-            materials_data.append({
-                "material_id": material.material_id,
-                "training_id": material.training_id,
-                "training_name": material.training.training_name,
-                "instructor_id": material.instructor_id,
-                "instructor_name": f"{material.instructor.person.person_first_name} {material.instructor.person.person_last_name}",
-                "material_title": material.material_title,
-                "material_description": material.material_description or "",
-                "material_type": material.material_type,
-                "created_at": material.material_created_at.isoformat()
-            })
-        
-        # 7. Progreso de materiales
-        material_progress_data = []
-        for mp in material_progress:
-            material_progress_data.append({
-                "progress_id": mp.progress_id,
-                "user_id": mp.user_id,
-                "user_name": f"{mp.user.person.person_first_name} {mp.user.person.person_last_name}",
-                "material_id": mp.material_id,
-                "assignment_id": mp.assignment_id,
-                "is_completed": mp.is_completed,
-                "completed_at": mp.completed_at.isoformat() if mp.completed_at else None,
-                "created_at": mp.created_at.isoformat()
-            })
-        
-        return {
-            "metadata": {
-                "generated_at": datetime.utcnow().isoformat(),
-                "data_summary": {
-                    "total_assignments": len(assignments_data),
-                    "total_users": len(users_data),
-                    "total_teams": len(teams_data),
-                    "total_trainings": len(trainings_data),
-                    "total_materials": len(materials_data)
-                }
-            },
-            "assignments": assignments_data,
-            "users": users_data,
-            "teams": teams_data,
-            "trainings": trainings_data,
-            "technology_progress": tech_progress_data,
-            "materials": materials_data,
-            "material_progress": material_progress_data
-        }
+        return {"data": result, "count": len(result)}
         
     except Exception as e:
-        return {"error": f"Error al obtener datos: {str(e)}", "data": []}
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.get("/api/v1/powerbi/assignments-detail", tags=["Power BI"])
+def get_assignments_detail_for_powerbi(db: Session = Depends(get_db)):
+    """
+    Endpoint optimizado para Power BI - Detalle de asignaciones
+    """
+    try:
+        assignments_data = db.query(
+            models.UserTrainingAssignment.assignment_id,
+            models.UserTrainingAssignment.assignment_status,
+            models.UserTrainingAssignment.created_at,
+            models.UserTrainingAssignment.updated_at,
+            # Usuario (cliente)
+            models.User.user_id.label('client_id'),
+            models.User.user_username.label('client_username'),
+            models.Person.person_first_name.label('client_first_name'),
+            models.Person.person_last_name.label('client_last_name'),
+            models.Person.person_email.label('client_email'),
+            models.Gender.gender_name.label('client_gender'),
+            # Capacitación
+            models.Training.training_id,
+            models.Training.training_name,
+            models.Training.training_description,
+        ).join(
+            models.User, models.UserTrainingAssignment.user_id == models.User.user_id
+        ).join(
+            models.Person, models.User.person_id == models.Person.person_id
+        ).join(
+            models.Gender, models.Person.person_gender == models.Gender.gender_id
+        ).join(
+            models.Training, models.UserTrainingAssignment.training_id == models.Training.training_id
+        ).all()
+
+        result = []
+        for row in assignments_data:
+            # Obtener instructor si existe
+            instructor_info = None
+            if hasattr(row, 'instructor_id') and row.instructor_id:
+                instructor = db.query(
+                    models.User.user_username,
+                    models.Person.person_first_name,
+                    models.Person.person_last_name
+                ).join(
+                    models.Person, models.User.person_id == models.Person.person_id
+                ).filter(models.User.user_id == row.instructor_id).first()
+                
+                if instructor:
+                    instructor_info = f"{instructor.person_first_name} {instructor.person_last_name}"
+            
+            result.append({
+                "assignment_id": row.assignment_id,
+                "assignment_status": row.assignment_status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                "client_id": row.client_id,
+                "client_username": row.client_username,
+                "client_name": f"{row.client_first_name} {row.client_last_name}",
+                "client_first_name": row.client_first_name,
+                "client_last_name": row.client_last_name,
+                "client_email": row.client_email,
+                "client_gender": row.client_gender,
+                "training_id": row.training_id,
+                "training_name": row.training_name,
+                "training_description": row.training_description,
+                "instructor_name": instructor_info
+            })
+        
+        return {"data": result, "count": len(result)}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.get("/api/v1/powerbi/teams-summary", tags=["Power BI"])
+def get_teams_summary_for_powerbi(db: Session = Depends(get_db)):
+    """
+    Endpoint optimizado para Power BI - Resumen de equipos
+    """
+    try:
+        teams_data = db.query(
+            models.Team.team_id,
+            models.Team.team_name,
+            models.Team.team_description,
+            models.Team.created_at,
+            # Supervisor
+            models.User.user_username.label('supervisor_username'),
+            models.Person.person_first_name.label('supervisor_first_name'),
+            models.Person.person_last_name.label('supervisor_last_name')
+        ).join(
+            models.User, models.Team.supervisor_id == models.User.user_id
+        ).join(
+            models.Person, models.User.person_id == models.Person.person_id
+        ).filter(models.Team.team_status == 'A').all()
+
+        result = []
+        for team in teams_data:
+            # Contar miembros por tipo
+            members = db.query(models.TeamMember).filter(
+                models.TeamMember.team_id == team.team_id,
+                models.TeamMember.member_status == 'A'
+            ).all()
+            
+            member_stats = {
+                'instructors': len([m for m in members if m.member_role == 'instructor']),
+                'clients': len([m for m in members if m.member_role == 'client']),
+                'total_members': len(members)
+            }
+            
+            result.append({
+                "team_id": team.team_id,
+                "team_name": team.team_name,
+                "team_description": team.team_description,
+                "created_at": team.created_at.isoformat() if team.created_at else None,
+                "supervisor_name": f"{team.supervisor_first_name} {team.supervisor_last_name}",
+                "supervisor_username": team.supervisor_username,
+                **member_stats
+            })
+        
+        return {"data": result, "count": len(result)}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.get("/api/v1/powerbi/progress-summary", tags=["Power BI"])
+def get_progress_summary_for_powerbi(db: Session = Depends(get_db)):
+    """
+    Endpoint para mostrar progreso general en Power BI
+    """
+    try:
+        # Progreso de tecnologías por usuario y capacitación
+        tech_progress = db.query(
+            models.UserTechnologyProgress.assignment_id,
+            models.UserTechnologyProgress.is_completed,
+            models.UserTechnologyProgress.completed_at,
+            models.Technology.technology_name,
+            models.User.user_username,
+            models.Person.person_first_name,
+            models.Person.person_last_name,
+            models.Training.training_name
+        ).join(
+            models.Technology, models.UserTechnologyProgress.technology_id == models.Technology.technology_id
+        ).join(
+            models.UserTrainingAssignment, models.UserTechnologyProgress.assignment_id == models.UserTrainingAssignment.assignment_id
+        ).join(
+            models.User, models.UserTrainingAssignment.user_id == models.User.user_id
+        ).join(
+            models.Person, models.User.person_id == models.Person.person_id
+        ).join(
+            models.Training, models.UserTrainingAssignment.training_id == models.Training.training_id
+        ).all()
+
+        result = []
+        for progress in tech_progress:
+            result.append({
+                "assignment_id": progress.assignment_id,
+                "technology_name": progress.technology_name,
+                "is_completed": progress.is_completed == 'Y',
+                "completed_at": progress.completed_at.isoformat() if progress.completed_at else None,
+                "user_name": f"{progress.person_first_name} {progress.person_last_name}",
+                "username": progress.user_username,
+                "training_name": progress.training_name
+            })
+        
+        return {"data": result, "count": len(result)}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# Endpoint general para obtener todas las tablas disponibles
+@app.get("/api/v1/powerbi/tables", tags=["Power BI"])
+def get_available_tables_for_powerbi():
+    """
+    Listar todos los endpoints disponibles para Power BI
+    """
+    return {
+        "available_endpoints": [
+            {
+                "name": "users_summary",
+                "url": "/api/v1/powerbi/users-summary",
+                "description": "Resumen completo de usuarios con roles y datos personales"
+            },
+            {
+                "name": "trainings_summary", 
+                "url": "/api/v1/powerbi/trainings-summary",
+                "description": "Resumen de capacitaciones con estadísticas de asignaciones"
+            },
+            {
+                "name": "assignments_detail",
+                "url": "/api/v1/powerbi/assignments-detail", 
+                "description": "Detalle completo de asignaciones de capacitaciones"
+            },
+            {
+                "name": "teams_summary",
+                "url": "/api/v1/powerbi/teams-summary",
+                "description": "Resumen de equipos con contadores de miembros"
+            },
+            {
+                "name": "progress_summary",
+                "url": "/api/v1/powerbi/progress-summary",
+                "description": "Progreso de tecnologías por usuario y capacitación"
+            }
+        ]
+    }
