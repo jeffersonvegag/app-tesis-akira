@@ -44,7 +44,10 @@ import {
 const API_BASE_URL = 'https://app-tesis-akira.onrender.com';
 
 console.log('🔗 Frontend conectando a backend:', API_BASE_URL); // Para debug
-
+console.log('🔍 Variables de entorno:');
+console.log('- import.meta.env:', import.meta);
+console.log('- VITE_API_URL:', (import.meta as any).env?.VITE_API_URL);
+console.log('- API_BASE_URL final:', API_BASE_URL);
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
