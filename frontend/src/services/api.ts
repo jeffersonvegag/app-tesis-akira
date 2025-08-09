@@ -45,7 +45,7 @@ console.log('- import.meta:', import.meta);
 console.log('- import.meta.env:', (import.meta as any).env);
 console.log('- VITE_API_URL:', (import.meta as any).env?.VITE_API_URL);
 
-const API_BASE_URL = 'https://app-tesis-akira.onrender.com'; // Hardcoded temporal
+const API_BASE_URL = 'https://app-tesis-akira.onrender.com/api/v1'; // Hardcoded temporal
 
 console.log('- API_BASE_URL final:', API_BASE_URL);
 
