@@ -1883,3 +1883,277 @@ def get_all_tables_data(db: Session = Depends(get_db)):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# Nuevos endpoints para inicializar datos en Turso
+@app.post("/api/v1/init-turso-schema", tags=["Database Initialization"])
+def initialize_turso_schema():
+    """
+    Crear el esquema completo de tablas en Turso
+    """
+    try:
+        from database import turso_client
+        
+        # Sentencias DDL para crear todas las tablas
+        create_tables = [
+            """CREATE TABLE IF NOT EXISTS per_c_gender (
+                gender_id INTEGER PRIMARY KEY,
+                gender_name TEXT NOT NULL,
+                gender_status TEXT DEFAULT 'A',
+                gender_created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS per_c_role (
+                role_id INTEGER PRIMARY KEY,
+                role_name TEXT NOT NULL,
+                role_description TEXT NOT NULL,
+                role_status TEXT DEFAULT 'A',
+                role_created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS per_m_person (
+                person_id INTEGER PRIMARY KEY,
+                person_dni INTEGER NOT NULL UNIQUE,
+                person_first_name TEXT NOT NULL,
+                person_last_name TEXT NOT NULL,
+                person_gender INTEGER NOT NULL,
+                person_email TEXT NOT NULL UNIQUE,
+                person_status TEXT DEFAULT 'A',
+                person_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (person_gender) REFERENCES per_c_gender(gender_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS per_m_user (
+                user_id INTEGER PRIMARY KEY,
+                user_username TEXT NOT NULL UNIQUE,
+                user_password TEXT NOT NULL,
+                person_id INTEGER NOT NULL,
+                user_role INTEGER NOT NULL,
+                user_status TEXT DEFAULT 'A',
+                user_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (person_id) REFERENCES per_m_person(person_id),
+                FOREIGN KEY (user_role) REFERENCES per_c_role(role_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_m_technology (
+                technology_id INTEGER PRIMARY KEY,
+                technology_name TEXT NOT NULL,
+                technology_created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_m_training (
+                training_id INTEGER PRIMARY KEY,
+                training_name TEXT NOT NULL,
+                training_description TEXT,
+                training_status TEXT DEFAULT 'A',
+                training_created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_t_training_technology (
+                training_technology_id INTEGER PRIMARY KEY,
+                training_id INTEGER NOT NULL,
+                technology_id INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (training_id) REFERENCES acd_m_training(training_id),
+                FOREIGN KEY (technology_id) REFERENCES acd_m_technology(technology_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_t_user_training_assignment (
+                assignment_id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                training_id INTEGER NOT NULL,
+                instructor_id INTEGER,
+                assignment_status TEXT DEFAULT 'assigned',
+                assignment_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                completion_percentage DECIMAL(5,2) DEFAULT 0.00,
+                instructor_meeting_link TEXT,
+                FOREIGN KEY (user_id) REFERENCES per_m_user(user_id),
+                FOREIGN KEY (training_id) REFERENCES acd_m_training(training_id),
+                FOREIGN KEY (instructor_id) REFERENCES per_m_user(user_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_t_user_technology_progress (
+                progress_id INTEGER PRIMARY KEY,
+                assignment_id INTEGER NOT NULL,
+                technology_id INTEGER NOT NULL,
+                is_completed TEXT DEFAULT 'N',
+                completed_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (assignment_id) REFERENCES acd_t_user_training_assignment(assignment_id),
+                FOREIGN KEY (technology_id) REFERENCES acd_m_technology(technology_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_t_user_training_status (
+                status_id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL UNIQUE,
+                total_trainings_assigned INTEGER DEFAULT 0,
+                trainings_completed INTEGER DEFAULT 0,
+                trainings_in_progress INTEGER DEFAULT 0,
+                overall_status TEXT DEFAULT 'no_training',
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES per_m_user(user_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS per_m_team (
+                team_id INTEGER PRIMARY KEY,
+                team_name TEXT NOT NULL,
+                team_description TEXT,
+                supervisor_id INTEGER NOT NULL,
+                team_status TEXT DEFAULT 'A',
+                team_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (supervisor_id) REFERENCES per_m_user(user_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS per_t_team_member (
+                team_member_id INTEGER PRIMARY KEY,
+                team_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                member_role TEXT NOT NULL,
+                member_status TEXT DEFAULT 'A',
+                joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (team_id) REFERENCES per_m_team(team_id),
+                FOREIGN KEY (user_id) REFERENCES per_m_user(user_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_m_training_material (
+                material_id INTEGER PRIMARY KEY,
+                training_id INTEGER NOT NULL,
+                instructor_id INTEGER NOT NULL,
+                material_title TEXT NOT NULL,
+                material_description TEXT,
+                material_url TEXT NOT NULL,
+                material_type TEXT DEFAULT 'link',
+                material_status TEXT DEFAULT 'A',
+                material_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (training_id) REFERENCES acd_m_training(training_id),
+                FOREIGN KEY (instructor_id) REFERENCES per_m_user(user_id)
+            )""",
+            
+            """CREATE TABLE IF NOT EXISTS acd_t_user_material_progress (
+                progress_id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                material_id INTEGER NOT NULL,
+                assignment_id INTEGER NOT NULL,
+                is_completed TEXT DEFAULT 'N',
+                completed_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES per_m_user(user_id),
+                FOREIGN KEY (material_id) REFERENCES acd_m_training_material(material_id),
+                FOREIGN KEY (assignment_id) REFERENCES acd_t_user_training_assignment(assignment_id)
+            )"""
+        ]
+        
+        # Ejecutar todas las sentencias de creación
+        result = turso_client.execute_multiple(create_tables)
+        
+        if result:
+            return {"message": "✅ Esquema de base de datos creado exitosamente en Turso"}
+        else:
+            raise HTTPException(status_code=500, detail="Error creando el esquema")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.post("/api/v1/init-turso-data", tags=["Database Initialization"])
+def initialize_turso_basic_data():
+    """
+    Inicializar datos básicos en Turso (géneros, roles)
+    """
+    try:
+        from database import turso_client
+        import bcrypt
+        
+        # Datos iniciales
+        init_queries = [
+            # Géneros
+            "INSERT OR IGNORE INTO per_c_gender (gender_id, gender_name) VALUES (1, 'Masculino')",
+            "INSERT OR IGNORE INTO per_c_gender (gender_id, gender_name) VALUES (2, 'Femenino')",
+            
+            # Roles
+            "INSERT OR IGNORE INTO per_c_role (role_id, role_name, role_description) VALUES (1, 'Administrador', 'Acceso completo al sistema')",
+            "INSERT OR IGNORE INTO per_c_role (role_id, role_name, role_description) VALUES (2, 'Área de Capacitación', 'Gestión de planes de carrera')",
+            "INSERT OR IGNORE INTO per_c_role (role_id, role_name, role_description) VALUES (3, 'Supervisor', 'Supervisión de equipos')",
+            "INSERT OR IGNORE INTO per_c_role (role_id, role_name, role_description) VALUES (4, 'Empleado', 'Usuario final')",
+            "INSERT OR IGNORE INTO per_c_role (role_id, role_name, role_description) VALUES (5, 'Instructor', 'Instructor de capacitaciones')",
+            "INSERT OR IGNORE INTO per_c_role (role_id, role_name, role_description) VALUES (6, 'Administrador de Reportes', 'Acceso a reportes Power BI')",
+        ]
+        
+        # Crear usuario administrador por defecto
+        password = "admin123"
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        init_queries.extend([
+            f"INSERT OR IGNORE INTO per_m_person (person_id, person_dni, person_first_name, person_last_name, person_gender, person_email) VALUES (1, 12345678, 'Admin', 'Sistema', 1, 'admin@sistema.com')",
+            f"INSERT OR IGNORE INTO per_m_user (user_id, user_username, user_password, person_id, user_role) VALUES (1, 'admin', '{hashed_password}', 1, 1)"
+        ])
+        
+        result = turso_client.execute_multiple(init_queries)
+        
+        if result:
+            return {"message": "✅ Datos básicos inicializados en Turso", "admin_credentials": {"username": "admin", "password": "admin123"}}
+        else:
+            raise HTTPException(status_code=500, detail="Error inicializando datos básicos")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@app.post("/api/v1/init-turso-technologies-trainings", tags=["Database Initialization"])
+def initialize_turso_technologies_trainings():
+    """
+    Inicializar tecnologías y capacitaciones en Turso
+    """
+    try:
+        from database import turso_client
+        
+        # Tecnologías
+        technologies_queries = [
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('JavaScript')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('Python')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('React')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('Node.js')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('SQL')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('Docker')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('Git')",
+            "INSERT OR IGNORE INTO acd_m_technology (technology_name) VALUES ('AWS')",
+        ]
+        
+        # Capacitaciones
+        trainings_queries = [
+            "INSERT OR IGNORE INTO acd_m_training (training_name, training_description) VALUES ('Desarrollo Frontend con React', 'Curso completo de React y desarrollo frontend moderno')",
+            "INSERT OR IGNORE INTO acd_m_training (training_name, training_description) VALUES ('Backend con Node.js', 'Desarrollo de APIs y servicios backend')",
+            "INSERT OR IGNORE INTO acd_m_training (training_name, training_description) VALUES ('Base de Datos SQL', 'Diseño y optimización de bases de datos')",
+            "INSERT OR IGNORE INTO acd_m_training (training_name, training_description) VALUES ('DevOps con Docker', 'Containerización y despliegue de aplicaciones')",
+            "INSERT OR IGNORE INTO acd_m_training (training_name, training_description) VALUES ('Python para Data Science', 'Análisis de datos con Python')",
+        ]
+        
+        # Asociaciones training-technology
+        associations_queries = [
+            # React Frontend (training_id=1) con JavaScript, React
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (1, 1)", # JavaScript
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (1, 3)", # React
+            
+            # Backend Node.js (training_id=2) con JavaScript, Node.js
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (2, 1)", # JavaScript
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (2, 4)", # Node.js
+            
+            # SQL (training_id=3) con SQL
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (3, 5)", # SQL
+            
+            # DevOps (training_id=4) con Docker, Git
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (4, 6)", # Docker
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (4, 7)", # Git
+            
+            # Python Data Science (training_id=5) con Python
+            "INSERT OR IGNORE INTO acd_t_training_technology (training_id, technology_id) VALUES (5, 2)", # Python
+        ]
+        
+        all_queries = technologies_queries + trainings_queries + associations_queries
+        result = turso_client.execute_multiple(all_queries)
+        
+        if result:
+            return {"message": "✅ Tecnologías y capacitaciones inicializadas en Turso"}
+        else:
+            raise HTTPException(status_code=500, detail="Error inicializando tecnologías y capacitaciones")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

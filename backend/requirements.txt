@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlalchemy
 libsql-client
 sqlalchemy-libsql
+libsql-experimental
 python-multipart
 passlib[bcrypt]
 python-jose[cryptography]
