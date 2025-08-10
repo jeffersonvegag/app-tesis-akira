@@ -1608,9 +1608,58 @@ def get_available_tables_for_powerbi():
                 "name": "all_tables",
                 "url": "/api/v1/powerbi/all-tables",
                 "description": "Datos completos de todas las tablas del sistema"
+            },
+            {
+                "name": "all_tables_turso",
+                "url": "/api/v1/powerbi/all-tables-turso",
+                "description": "Datos completos directamente desde Turso via HTTP API"
             }
         ]
     }
+
+@app.get("/api/v1/powerbi/all-tables-turso", tags=["Power BI"])
+def get_all_tables_data_from_turso():
+    """
+    Obtener datos de todas las tablas directamente desde Turso para Power BI
+    """
+    try:
+        from database import turso_client
+        
+        # Lista de todas las tablas a consultar
+        tables_queries = {
+            "genders": "SELECT * FROM per_c_gender",
+            "roles": "SELECT * FROM per_c_role", 
+            "persons": "SELECT * FROM per_m_person",
+            "users": "SELECT * FROM per_m_user",
+            "technologies": "SELECT * FROM acd_m_technology",
+            "trainings": "SELECT * FROM acd_m_training",
+            "training_technologies": "SELECT * FROM acd_t_training_technology",
+            "user_training_assignments": "SELECT * FROM acd_t_user_training_assignment",
+            "user_technology_progress": "SELECT * FROM acd_t_user_technology_progress",
+            "user_training_status": "SELECT * FROM acd_t_user_training_status",
+            "teams": "SELECT * FROM per_m_team",
+            "team_members": "SELECT * FROM per_t_team_member",
+            "training_materials": "SELECT * FROM acd_m_training_material",
+            "user_material_progress": "SELECT * FROM acd_t_user_material_progress"
+        }
+        
+        result = {}
+        
+        for table_name, query in tables_queries.items():
+            response = turso_client.execute_query(query)
+            if response and "results" in response and len(response["results"]) > 0:
+                result_data = response["results"][0]
+                if "response" in result_data and "result" in result_data["response"]:
+                    result[table_name] = result_data["response"]["result"]
+                else:
+                    result[table_name] = []
+            else:
+                result[table_name] = []
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @app.get("/api/v1/powerbi/all-tables", tags=["Power BI"])
 def get_all_tables_data(db: Session = Depends(get_db)):
