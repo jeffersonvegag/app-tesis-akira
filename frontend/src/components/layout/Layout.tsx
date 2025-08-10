@@ -31,7 +31,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, o
       title: 'Dashboard',
       icon: Home,
       path: '/dashboard',
-      roles: [UserRoles.ADMIN, UserRoles.SUPERVISOR, UserRoles.CLIENT, UserRoles.INSTRUCTOR],
+      roles: [UserRoles.ADMIN, UserRoles.CLIENT, UserRoles.INSTRUCTOR],
     },
     {
       title: 'Gestión de Usuarios',
@@ -40,21 +40,21 @@ const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, o
       roles: [UserRoles.ADMIN],
     },
     {
-      title: 'Asignación de Crusos',
+      title: 'Asignación de Cursos',
       icon: BookOpen,
       path: '/course-assignments',
       roles: [UserRoles.ADMIN],
     },
     {
-      title: 'Gestión de Cursos',
-      icon: BookOpen,
-      path: '/courses',
+      title: 'Gestión de Equipos',
+      icon: Users,
+      path: '/teams',
       roles: [UserRoles.ADMIN],
     },
     {
       title: 'Mi Equipo',
       icon: Users,
-      path: '/my-team',
+      path: '/teams',
       roles: [UserRoles.SUPERVISOR],
     },
     {
@@ -62,12 +62,6 @@ const Sidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, o
       icon: BookOpen,
       path: '/my-courses',
       roles: [UserRoles.CLIENT],
-    },
-    {
-      title: 'Calendario de Clases',
-      icon: GraduationCap,
-      path: '/calendar',
-      roles: [UserRoles.INSTRUCTOR],
     },
     {
       title: 'Material de Apoyo',
@@ -199,7 +193,7 @@ const Header: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
             <p className="text-sm font-medium text-gray-900">
               {user?.person.person_first_name} {user?.person.person_last_name}
             </p>
-            <p className="text-xs text-gray-500">{user?.position.position_name}</p>
+            <p className="text-xs text-gray-500">{user?.role.role_name}</p>
           </div>
         </div>
       </div>

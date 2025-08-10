@@ -58,7 +58,6 @@ interface UserFormData {
   user_password: string;
   person_id: string;
   user_role: string;
-  user_position_id: string;
 }
 
 const UserManagementPage: React.FC = () => {
@@ -87,7 +86,6 @@ const UserManagementPage: React.FC = () => {
     user_password: '',
     person_id: '',
     user_role: '',
-    user_position_id: '',
   });
 
   // Queries
@@ -99,7 +97,6 @@ const UserManagementPage: React.FC = () => {
 
   const { data: persons = [] } = useQuery('persons', () => personService.getPersons());
   const { data: roles = [] } = useQuery('roles', () => catalogService.getRoles());
-  const { data: positions = [] } = useQuery('positions', () => catalogService.getPositions());
   const { data: genders = [] } = useQuery('genders', () => catalogService.getGenders());
 
   // Mutations
@@ -169,8 +166,7 @@ const UserManagementPage: React.FC = () => {
       user_password: '',
       person_id: '',
       user_role: '',
-      user_position_id: '',
-    });
+      });
   };
 
   // Handle form submissions
@@ -192,7 +188,7 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleCreateUser = () => {
-    if (!userForm.user_username.trim() || !userForm.user_password.trim() || !userForm.person_id || !userForm.user_role || !userForm.user_position_id) {
+    if (!userForm.user_username.trim() || !userForm.user_password.trim() || !userForm.person_id || !userForm.user_role) {
       toast.error('Todos los campos son requeridos');
       return;
     }
@@ -200,11 +196,11 @@ const UserManagementPage: React.FC = () => {
     const userData: UserCreateForm = {
       user_username: userForm.user_username,
       user_password: userForm.user_password,
-      person_id: parseInt(userForm.person_id),
-      user_role: parseInt(userForm.user_role),
-      user_position_id: parseInt(userForm.user_position_id),
+      person_id: Number(userForm.person_id),
+      user_role: Number(userForm.user_role),
     };
 
+    console.log('Creating user with data:', userData);
     createUserMutation.mutate(userData);
   };
 
@@ -427,7 +423,6 @@ const UserManagementPage: React.FC = () => {
                    </td>
                    <td className="px-6 py-4 whitespace-nowrap">
                      <div className="text-sm text-gray-900">{user.role.role_name}</div>
-                     <div className="text-sm text-gray-500">{user.position.position_name}</div>
                    </td>
                    <td className="px-6 py-4 whitespace-nowrap">
                      <span
@@ -686,21 +681,6 @@ const UserManagementPage: React.FC = () => {
              </div>
 
              <div>
-               <label className="block text-sm font-medium text-gray-700 mb-1">
-                 Posición *
-               </label>
-               <select
-                 value={userForm.user_position_id}
-                 onChange={(e) => setUserForm(prev => ({ ...prev, user_position_id: e.target.value }))}
-                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-               >
-                 <option value="">Seleccionar posición</option>
-                 {positions.map(position => (
-                   <option key={position.user_position_id} value={position.user_position_id}>
-                     {position.position_name}
-                   </option>
-                 ))}
-               </select>
              </div>
            </div>
 
@@ -773,10 +753,6 @@ const UserManagementPage: React.FC = () => {
                <div>
                  <label className="block text-sm font-medium text-gray-500">Rol</label>
                  <p className="text-sm text-gray-900">{state.selectedUser.role.role_name}</p>
-               </div>
-               <div>
-                 <label className="block text-sm font-medium text-gray-500">Posición</label>
-                 <p className="text-sm text-gray-900">{state.selectedUser.position.position_name}</p>
                </div>
                <div>
                  <label className="block text-sm font-medium text-gray-500">Estado</label>

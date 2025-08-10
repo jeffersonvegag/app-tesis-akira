@@ -1,5 +1,5 @@
 # Career Plan - Sistema de Capacitaciones Viamatica
-
+.
 Sistema completo de gestión de capacitaciones desarrollado con FastAPI (backend) y React + TypeScript (frontend), containerizado con Docker.
 
 ## 🎯 Objetivo General

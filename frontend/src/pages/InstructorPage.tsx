@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { InstructorCalendar } from '@/components/calendar/InstructorCalendar';
 import { MaterialsManager } from '@/components/materials/MaterialsManager';
 import { CalendarEvent, SessionCreateForm, StudyMaterial, MaterialUploadForm } from '@/types/advanced';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '@/components/ui';
 import { Calendar, FolderOpen, Users, BarChart3 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useAuthStore } from '@/store/authStore';
+import { trainingMaterialService } from '@/services/api';
+import { Training } from '@/types';
 
 export const InstructorPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const [assignedTrainings, setAssignedTrainings] = useState<Training[]>([]);
+  const [loading, setLoading] = useState(true);
+  
   // Estado de ejemplo - en implementación real vendría de APIs
   const [sessions, setSessions] = useState<CalendarEvent[]>([
     {
@@ -55,6 +62,26 @@ export const InstructorPage: React.FC = () => {
   ]);
 
   const [activeTab, setActiveTab] = useState<'calendar' | 'materials' | 'attendance'>('calendar');
+
+  // Cargar capacitaciones asignadas al instructor
+  useEffect(() => {
+    const loadAssignedTrainings = async () => {
+      if (!user?.user_id) return;
+
+      try {
+        setLoading(true);
+        const trainings = await trainingMaterialService.getInstructorAssignedTrainings(user.user_id);
+        setAssignedTrainings(trainings);
+      } catch (error) {
+        console.error('Error cargando capacitaciones asignadas:', error);
+        toast.error('Error al cargar capacitaciones asignadas');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAssignedTrainings();
+  }, [user?.user_id]);
 
   const handleCreateSession = (sessionData: SessionCreateForm) => {
     const newSession: CalendarEvent = {
@@ -187,6 +214,48 @@ export const InstructorPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Capacitaciones Asignadas */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mis Capacitaciones Asignadas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
+              <p className="text-gray-600 mt-2">Cargando capacitaciones...</p>
+            </div>
+          ) : assignedTrainings.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No tienes capacitaciones asignadas
+              </h3>
+              <p className="text-gray-600">
+                Un administrador debe asignarte capacitaciones para que puedas gestionarlas
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {assignedTrainings.map(training => (
+                <div key={training.training_id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <h3 className="font-semibold text-gray-900 mb-2">{training.training_name}</h3>
+                  {training.training_description && (
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+                      {training.training_description}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <span>Estado: Activo</span>
+                    <span className="text-primary-600 font-medium">Asignado</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Navegación por tabs */}
       <div className="border-b border-gray-200">

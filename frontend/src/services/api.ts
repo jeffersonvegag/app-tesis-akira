@@ -18,17 +18,36 @@ import {
   CourseAssignment,
   CourseAssignmentCreateForm,
   Training,
+  Team,
+  TeamMember,
+  TeamCreateWithMembersForm,
+  TeamUpdateForm,
+  TeamMemberCreateForm,
+  TrainingMaterial,
+  TrainingMaterialCreateForm,
+  TrainingMaterialUpdateForm,
   TrainingCreateForm,
   TrainingTechnology,
   UserTrainingAssignment,
   UserTrainingAssignmentCreateForm,
   UserTechnologyProgress,
+  UserTechnologyProgressCreateForm,
   UserTechnologyProgressUpdateForm,
+  UserMaterialProgress,
+  UserMaterialProgressCreateForm,
+  UserMaterialProgressUpdateForm,
   UserTrainingStatus,
   UserTrainingStatusCreateForm,
 } from '@/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+console.log('🔍 DEBUG API Configuration:');
+console.log('- import.meta:', import.meta);
+console.log('- import.meta.env:', (import.meta as any).env);
+console.log('- VITE_API_URL:', (import.meta as any).env?.VITE_API_URL);
+
+const API_BASE_URL = 'https://app-tesis-akira.onrender.com/api/v1'; // Hardcoded temporal
+
+console.log('- API_BASE_URL final:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -195,7 +214,7 @@ export const catalogService = {
     return response.data;
   },
   
-  getPositions: async (): Promise<UserPosition[]> => {
+  getPositions: async (): Promise<any[]> => {
     const response = await api.get('/positions');
     return response.data;
   },
@@ -220,7 +239,7 @@ export const catalogService = {
     return response.data;
   },
   
-  createPosition: async (positionData: { position_name: string }): Promise<UserPosition> => {
+  createPosition: async (positionData: { position_name: string }): Promise<any> => {
     const response = await api.post('/positions', positionData);
     return response.data;
   },
@@ -370,6 +389,158 @@ export const userTrainingStatusService = {
   // Actualizar estado del usuario
   refreshStatus: async (userId: number): Promise<UserTrainingStatus> => {
     const response = await api.put(`/user-training-status/refresh/${userId}`);
+    return response.data;
+  },
+};
+
+// Servicios de gestión de equipos
+export const teamService = {
+  // Obtener todos los equipos
+  getTeams: async (): Promise<Team[]> => {
+    const response = await api.get('/teams');
+    return response.data;
+  },
+
+  // Obtener equipo por ID
+  getTeam: async (teamId: number): Promise<Team> => {
+    const response = await api.get(`/teams/${teamId}`);
+    return response.data;
+  },
+
+  // Obtener equipos por supervisor
+  getTeamsBySupervisor: async (supervisorId: number): Promise<Team[]> => {
+    const response = await api.get(`/teams/supervisor/${supervisorId}`);
+    return response.data;
+  },
+
+  // Crear nuevo equipo con miembros
+  createTeam: async (teamData: TeamCreateWithMembersForm): Promise<Team> => {
+    const response = await api.post('/teams', teamData);
+    return response.data;
+  },
+
+  // Actualizar equipo
+  updateTeam: async (teamId: number, teamData: TeamUpdateForm): Promise<Team> => {
+    const response = await api.put(`/teams/${teamId}`, teamData);
+    return response.data;
+  },
+
+  // Eliminar equipo
+  deleteTeam: async (teamId: number): Promise<void> => {
+    await api.delete(`/teams/${teamId}`);
+  },
+
+  // Agregar miembro al equipo
+  addTeamMember: async (teamId: number, memberData: TeamMemberCreateForm): Promise<TeamMember> => {
+    const response = await api.post(`/teams/${teamId}/members`, memberData);
+    return response.data;
+  },
+
+  // Remover miembro del equipo
+  removeTeamMember: async (teamId: number, memberId: number): Promise<void> => {
+    await api.delete(`/teams/${teamId}/members/${memberId}`);
+  },
+
+  // Asignar capacitación a todo el equipo
+  assignTrainingToTeam: async (teamId: number, trainingId: number, instructorId?: number): Promise<any> => {
+    const response = await api.post(`/teams/${teamId}/assign-training`, {
+      training_id: trainingId,
+      instructor_id: instructorId,
+    });
+    return response.data;
+  },
+
+  // Asignar capacitación a clientes específicos del equipo
+  assignTrainingToSpecificClients: async (teamId: number, trainingId: number, clientIds: number[], instructorId?: number): Promise<any> => {
+    const response = await api.post(`/teams/${teamId}/assign-training-to-clients`, {
+      training_id: trainingId,
+      client_ids: clientIds,
+      instructor_id: instructorId,
+    });
+    return response.data;
+  },
+};
+
+// Servicios de materiales de apoyo
+export const trainingMaterialService = {
+  // Obtener materiales con filtros
+  getMaterials: async (instructorId?: number, trainingId?: number): Promise<TrainingMaterial[]> => {
+    const params = new URLSearchParams();
+    if (instructorId) params.append('instructor_id', instructorId.toString());
+    if (trainingId) params.append('training_id', trainingId.toString());
+    
+    const response = await api.get(`/training-materials?${params.toString()}`);
+    return response.data;
+  },
+
+  // Obtener material por ID
+  getMaterial: async (materialId: number): Promise<TrainingMaterial> => {
+    const response = await api.get(`/training-materials/${materialId}`);
+    return response.data;
+  },
+
+  // Crear nuevo material
+  createMaterial: async (materialData: TrainingMaterialCreateForm, instructorId: number): Promise<TrainingMaterial> => {
+    const response = await api.post(`/training-materials?instructor_id=${instructorId}`, materialData);
+    return response.data;
+  },
+
+  // Actualizar material
+  updateMaterial: async (materialId: number, materialData: TrainingMaterialUpdateForm, instructorId: number): Promise<TrainingMaterial> => {
+    const response = await api.put(`/training-materials/${materialId}?instructor_id=${instructorId}`, materialData);
+    return response.data;
+  },
+
+  // Eliminar material
+  deleteMaterial: async (materialId: number, instructorId: number): Promise<void> => {
+    await api.delete(`/training-materials/${materialId}?instructor_id=${instructorId}`);
+  },
+
+  // Obtener capacitaciones asignadas a un instructor
+  getInstructorAssignedTrainings: async (instructorId: number): Promise<Training[]> => {
+    const response = await api.get(`/instructors/${instructorId}/assigned-trainings`);
+    return response.data;
+  },
+};
+
+// Servicios de progreso de tecnologías
+export const technologyProgressService = {
+  // Obtener progreso por asignación
+  getProgressByAssignment: async (assignmentId: number): Promise<UserTechnologyProgress[]> => {
+    const response = await api.get(`/user-technology-progress/assignment/${assignmentId}`);
+    return response.data;
+  },
+
+  // Crear o actualizar progreso
+  createProgress: async (progressData: UserTechnologyProgressCreateForm): Promise<UserTechnologyProgress> => {
+    const response = await api.post('/user-technology-progress', progressData);
+    return response.data;
+  },
+
+  // Actualizar progreso por ID
+  updateProgress: async (progressId: number, progressData: UserTechnologyProgressUpdateForm): Promise<UserTechnologyProgress> => {
+    const response = await api.put(`/user-technology-progress/${progressId}`, progressData);
+    return response.data;
+  },
+};
+
+// Servicios de progreso de materiales
+export const materialProgressService = {
+  // Obtener progreso por asignación
+  getProgressByAssignment: async (assignmentId: number): Promise<UserMaterialProgress[]> => {
+    const response = await api.get(`/user-material-progress/assignment/${assignmentId}`);
+    return response.data;
+  },
+
+  // Crear o actualizar progreso
+  createProgress: async (progressData: UserMaterialProgressCreateForm): Promise<UserMaterialProgress> => {
+    const response = await api.post('/user-material-progress', progressData);
+    return response.data;
+  },
+
+  // Actualizar progreso por ID
+  updateProgress: async (progressId: number, progressData: UserMaterialProgressUpdateForm): Promise<UserMaterialProgress> => {
+    const response = await api.put(`/user-material-progress/${progressId}`, progressData);
     return response.data;
   },
 };

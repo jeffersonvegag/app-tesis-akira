@@ -24,7 +24,8 @@ export const LoginPage: React.FC = () => {
     try {
       await login(data);
       toast.success('¡Bienvenido!');
-      navigate('/dashboard');
+      // Después del login exitoso, redirigir usando DefaultRedirect
+      navigate('/');
     } catch (error: any) {
       console.error('Error en login:', error);
       toast.error(error.response?.data?.detail || 'Error al iniciar sesión');
