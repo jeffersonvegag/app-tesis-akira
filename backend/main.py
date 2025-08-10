@@ -1603,6 +1603,234 @@ def get_available_tables_for_powerbi():
                 "name": "progress_summary",
                 "url": "/api/v1/powerbi/progress-summary",
                 "description": "Progreso de tecnologías por usuario y capacitación"
+            },
+            {
+                "name": "all_tables",
+                "url": "/api/v1/powerbi/all-tables",
+                "description": "Datos completos de todas las tablas del sistema"
             }
         ]
     }
+
+@app.get("/api/v1/powerbi/all-tables", tags=["Power BI"])
+def get_all_tables_data(db: Session = Depends(get_db)):
+    """
+    Obtener datos de todas las tablas del sistema para Power BI
+    """
+    try:
+        # Obtener datos de todas las tablas
+        genders = db.query(models.Gender).all()
+        roles = db.query(models.Role).all()
+        persons = db.query(models.Person).options(joinedload(models.Person.gender)).all()
+        users = db.query(models.User).options(
+            joinedload(models.User.person).joinedload(models.Person.gender),
+            joinedload(models.User.role)
+        ).all()
+        technologies = db.query(models.Technology).all()
+        trainings = db.query(models.Training).all()
+        training_technologies = db.query(models.TrainingTechnology).options(
+            joinedload(models.TrainingTechnology.training),
+            joinedload(models.TrainingTechnology.technology)
+        ).all()
+        user_training_assignments = db.query(models.UserTrainingAssignment).options(
+            joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person),
+            joinedload(models.UserTrainingAssignment.training),
+            joinedload(models.UserTrainingAssignment.instructor).joinedload(models.User.person)
+        ).all()
+        user_technology_progress = db.query(models.UserTechnologyProgress).options(
+            joinedload(models.UserTechnologyProgress.assignment).joinedload(models.UserTrainingAssignment.user).joinedload(models.User.person),
+            joinedload(models.UserTechnologyProgress.technology)
+        ).all()
+        user_training_status = db.query(models.UserTrainingStatus).options(
+            joinedload(models.UserTrainingStatus.user).joinedload(models.User.person)
+        ).all()
+        teams = db.query(models.Team).options(
+            joinedload(models.Team.supervisor).joinedload(models.User.person)
+        ).all()
+        team_members = db.query(models.TeamMember).options(
+            joinedload(models.TeamMember.team),
+            joinedload(models.TeamMember.user).joinedload(models.User.person)
+        ).all()
+        training_materials = db.query(models.TrainingMaterial).options(
+            joinedload(models.TrainingMaterial.training),
+            joinedload(models.TrainingMaterial.instructor).joinedload(models.User.person)
+        ).all()
+        user_material_progress = db.query(models.UserMaterialProgress).options(
+            joinedload(models.UserMaterialProgress.user).joinedload(models.User.person),
+            joinedload(models.UserMaterialProgress.material),
+            joinedload(models.UserMaterialProgress.assignment)
+        ).all()
+
+        return {
+            "genders": [
+                {
+                    "gender_id": g.gender_id,
+                    "gender_name": g.gender_name,
+                    "gender_status": g.gender_status,
+                    "gender_created_at": g.gender_created_at.isoformat() if g.gender_created_at else None
+                } for g in genders
+            ],
+            "roles": [
+                {
+                    "role_id": r.role_id,
+                    "role_name": r.role_name,
+                    "role_description": r.role_description,
+                    "role_status": r.role_status,
+                    "role_created_at": r.role_created_at.isoformat() if r.role_created_at else None
+                } for r in roles
+            ],
+            "persons": [
+                {
+                    "person_id": p.person_id,
+                    "person_dni": p.person_dni,
+                    "person_first_name": p.person_first_name,
+                    "person_last_name": p.person_last_name,
+                    "person_gender": p.person_gender,
+                    "gender_name": p.gender.gender_name if p.gender else None,
+                    "person_email": p.person_email,
+                    "person_status": p.person_status,
+                    "person_created_at": p.person_created_at.isoformat() if p.person_created_at else None
+                } for p in persons
+            ],
+            "users": [
+                {
+                    "user_id": u.user_id,
+                    "user_username": u.user_username,
+                    "person_id": u.person_id,
+                    "person_first_name": u.person.person_first_name if u.person else None,
+                    "person_last_name": u.person.person_last_name if u.person else None,
+                    "person_email": u.person.person_email if u.person else None,
+                    "person_dni": u.person.person_dni if u.person else None,
+                    "gender_name": u.person.gender.gender_name if u.person and u.person.gender else None,
+                    "user_role": u.user_role,
+                    "role_name": u.role.role_name if u.role else None,
+                    "role_description": u.role.role_description if u.role else None,
+                    "user_status": u.user_status,
+                    "user_created_at": u.user_created_at.isoformat() if u.user_created_at else None
+                } for u in users
+            ],
+            "technologies": [
+                {
+                    "technology_id": t.technology_id,
+                    "technology_name": t.technology_name,
+                    "technology_created_at": t.technology_created_at.isoformat() if t.technology_created_at else None
+                } for t in technologies
+            ],
+            "trainings": [
+                {
+                    "training_id": t.training_id,
+                    "training_name": t.training_name,
+                    "training_description": t.training_description,
+                    "training_status": t.training_status,
+                    "training_created_at": t.training_created_at.isoformat() if t.training_created_at else None
+                } for t in trainings
+            ],
+            "training_technologies": [
+                {
+                    "training_technology_id": tt.training_technology_id,
+                    "training_id": tt.training_id,
+                    "training_name": tt.training.training_name if tt.training else None,
+                    "technology_id": tt.technology_id,
+                    "technology_name": tt.technology.technology_name if tt.technology else None,
+                    "created_at": tt.created_at.isoformat() if tt.created_at else None
+                } for tt in training_technologies
+            ],
+            "user_training_assignments": [
+                {
+                    "assignment_id": a.assignment_id,
+                    "user_id": a.user_id,
+                    "user_name": f"{a.user.person.person_first_name} {a.user.person.person_last_name}" if a.user and a.user.person else None,
+                    "user_email": a.user.person.person_email if a.user and a.user.person else None,
+                    "training_id": a.training_id,
+                    "training_name": a.training.training_name if a.training else None,
+                    "instructor_id": a.instructor_id,
+                    "instructor_name": f"{a.instructor.person.person_first_name} {a.instructor.person.person_last_name}" if a.instructor and a.instructor.person else None,
+                    "assignment_status": a.assignment_status,
+                    "assignment_created_at": a.assignment_created_at.isoformat() if a.assignment_created_at else None,
+                    "completion_percentage": float(a.completion_percentage) if a.completion_percentage else 0.0,
+                    "instructor_meeting_link": a.instructor_meeting_link
+                } for a in user_training_assignments
+            ],
+            "user_technology_progress": [
+                {
+                    "progress_id": p.progress_id,
+                    "assignment_id": p.assignment_id,
+                    "user_id": p.assignment.user_id if p.assignment else None,
+                    "user_name": f"{p.assignment.user.person.person_first_name} {p.assignment.user.person.person_last_name}" if p.assignment and p.assignment.user and p.assignment.user.person else None,
+                    "technology_id": p.technology_id,
+                    "technology_name": p.technology.technology_name if p.technology else None,
+                    "is_completed": p.is_completed,
+                    "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+                    "created_at": p.created_at.isoformat() if p.created_at else None
+                } for p in user_technology_progress
+            ],
+            "user_training_status": [
+                {
+                    "status_id": s.status_id,
+                    "user_id": s.user_id,
+                    "user_name": f"{s.user.person.person_first_name} {s.user.person.person_last_name}" if s.user and s.user.person else None,
+                    "user_email": s.user.person.person_email if s.user and s.user.person else None,
+                    "total_trainings_assigned": s.total_trainings_assigned,
+                    "trainings_completed": s.trainings_completed,
+                    "trainings_in_progress": s.trainings_in_progress,
+                    "overall_status": s.overall_status,
+                    "last_updated": s.last_updated.isoformat() if s.last_updated else None,
+                    "created_at": s.created_at.isoformat() if s.created_at else None
+                } for s in user_training_status
+            ],
+            "teams": [
+                {
+                    "team_id": t.team_id,
+                    "team_name": t.team_name,
+                    "team_description": t.team_description,
+                    "supervisor_id": t.supervisor_id,
+                    "supervisor_name": f"{t.supervisor.person.person_first_name} {t.supervisor.person.person_last_name}" if t.supervisor and t.supervisor.person else None,
+                    "team_status": t.team_status,
+                    "team_created_at": t.team_created_at.isoformat() if t.team_created_at else None
+                } for t in teams
+            ],
+            "team_members": [
+                {
+                    "team_member_id": tm.team_member_id,
+                    "team_id": tm.team_id,
+                    "team_name": tm.team.team_name if tm.team else None,
+                    "user_id": tm.user_id,
+                    "user_name": f"{tm.user.person.person_first_name} {tm.user.person.person_last_name}" if tm.user and tm.user.person else None,
+                    "user_email": tm.user.person.person_email if tm.user and tm.user.person else None,
+                    "member_role": tm.member_role,
+                    "member_status": tm.member_status,
+                    "joined_at": tm.joined_at.isoformat() if tm.joined_at else None
+                } for tm in team_members
+            ],
+            "training_materials": [
+                {
+                    "material_id": m.material_id,
+                    "training_id": m.training_id,
+                    "training_name": m.training.training_name if m.training else None,
+                    "instructor_id": m.instructor_id,
+                    "instructor_name": f"{m.instructor.person.person_first_name} {m.instructor.person.person_last_name}" if m.instructor and m.instructor.person else None,
+                    "material_title": m.material_title,
+                    "material_description": m.material_description,
+                    "material_url": m.material_url,
+                    "material_type": m.material_type,
+                    "material_status": m.material_status,
+                    "material_created_at": m.material_created_at.isoformat() if m.material_created_at else None
+                } for m in training_materials
+            ],
+            "user_material_progress": [
+                {
+                    "progress_id": p.progress_id,
+                    "user_id": p.user_id,
+                    "user_name": f"{p.user.person.person_first_name} {p.user.person.person_last_name}" if p.user and p.user.person else None,
+                    "material_id": p.material_id,
+                    "material_title": p.material.material_title if p.material else None,
+                    "assignment_id": p.assignment_id,
+                    "is_completed": p.is_completed,
+                    "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+                    "created_at": p.created_at.isoformat() if p.created_at else None
+                } for p in user_material_progress
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
