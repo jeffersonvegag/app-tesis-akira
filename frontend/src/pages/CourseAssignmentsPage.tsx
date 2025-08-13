@@ -53,6 +53,8 @@ interface AssignmentsState {
 }
 
 const CourseAssignmentsPage: React.FC = () => {
+  console.log('🚀 CourseAssignmentsPage component initialized');
+  
   const queryClient = useQueryClient();
   const [state, setState] = useState<AssignmentsState>({
     selectedTraining: null,
@@ -74,19 +76,26 @@ const CourseAssignmentsPage: React.FC = () => {
   });
 
   // Queries
-  const { data: trainings = [], isLoading: loadingTrainings } = useQuery(
+  const { data: trainings = [], isLoading: loadingTrainings, error: trainingsError } = useQuery(
     'trainings',
     () => trainingService.getTrainings()
   );
 
-  const { data: users = [] } = useQuery('users', () => userService.getUsers());
+  const { data: users = [], error: usersError } = useQuery('users', () => userService.getUsers());
 
-  const { data: allAssignments = [], isLoading: loadingAssignments } = useQuery(
+  const { data: allAssignments = [], isLoading: loadingAssignments, error: assignmentsError } = useQuery(
     'user-training-assignments',
     () => userTrainingAssignmentService.getAssignments()
   );
 
-  const { data: technologies = [] } = useQuery('technologies', () => catalogService.getTechnologies());
+  const { data: technologies = [], error: technologiesError } = useQuery('technologies', () => catalogService.getTechnologies());
+
+  // Early debug logs
+  console.log('📊 Early Debug - Query Results:');
+  console.log('- trainings:', trainings, 'loading:', loadingTrainings, 'error:', trainingsError);
+  console.log('- users:', users, 'error:', usersError);
+  console.log('- allAssignments:', allAssignments, 'loading:', loadingAssignments, 'error:', assignmentsError);
+  console.log('- technologies:', technologies, 'error:', technologiesError);
 
   // Mutations
   const assignUsersMutation = useMutation(
@@ -189,6 +198,17 @@ const CourseAssignmentsPage: React.FC = () => {
     
     return matchesSearch && matchesStatus;
   });
+
+  // Debug logs
+  console.log('🔍 DEBUG CourseAssignmentsPage:');
+  console.log('- trainings:', trainings);
+  console.log('- allAssignments:', allAssignments);
+  console.log('- trainingAssignments:', trainingAssignments);
+  console.log('- filteredTrainingAssignments:', filteredTrainingAssignments);
+  console.log('- loadingTrainings:', loadingTrainings);
+  console.log('- loadingAssignments:', loadingAssignments);
+  console.log('- searchTerm:', state.searchTerm);
+  console.log('- filterStatus:', state.filterStatus);
 
   // Available users for assignment (clients only, not already assigned to selected training)
   const availableUsers = users.filter(user => 
