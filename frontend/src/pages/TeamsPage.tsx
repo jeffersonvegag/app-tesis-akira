@@ -174,7 +174,13 @@ const TeamsPage: React.FC = () => {
     {
       onSuccess: () => {
         toast.success('Equipo creado exitosamente');
+        // Invalidar todas las queries relacionadas para refrescar completamente la vista
         queryClient.invalidateQueries('teams');
+        queryClient.invalidateQueries('users');
+        queryClient.invalidateQueries('user-training-assignments');
+        queryClient.invalidateQueries('all-technology-progress');
+        queryClient.invalidateQueries('all-material-progress');
+        queryClient.invalidateQueries('all-training-materials');
         setState(prev => ({ ...prev, isCreateModalOpen: false }));
         resetForm();
       },
@@ -189,7 +195,13 @@ const TeamsPage: React.FC = () => {
     {
       onSuccess: () => {
         toast.success('Equipo eliminado exitosamente');
+        // Invalidar todas las queries relacionadas para refrescar completamente la vista
         queryClient.invalidateQueries('teams');
+        queryClient.invalidateQueries('users');
+        queryClient.invalidateQueries('user-training-assignments');
+        queryClient.invalidateQueries('all-technology-progress');
+        queryClient.invalidateQueries('all-material-progress');
+        queryClient.invalidateQueries('all-training-materials');
       },
       onError: (error: any) => {
         toast.error(error.response?.data?.detail || 'Error al eliminar equipo');
@@ -203,7 +215,13 @@ const TeamsPage: React.FC = () => {
     {
       onSuccess: () => {
         toast.success('Miembro agregado exitosamente');
+        // Invalidar todas las queries relacionadas para refrescar completamente la vista
         queryClient.invalidateQueries('teams');
+        queryClient.invalidateQueries('users');
+        queryClient.invalidateQueries('user-training-assignments');
+        queryClient.invalidateQueries('all-technology-progress');
+        queryClient.invalidateQueries('all-material-progress');
+        queryClient.invalidateQueries('all-training-materials');
         setState(prev => ({ ...prev, isAddMemberModalOpen: false }));
       },
       onError: (error: any) => {
@@ -218,7 +236,13 @@ const TeamsPage: React.FC = () => {
     {
       onSuccess: () => {
         toast.success('Equipo actualizado exitosamente');
+        // Invalidar todas las queries relacionadas para refrescar completamente la vista
         queryClient.invalidateQueries('teams');
+        queryClient.invalidateQueries('users');
+        queryClient.invalidateQueries('user-training-assignments');
+        queryClient.invalidateQueries('all-technology-progress');
+        queryClient.invalidateQueries('all-material-progress');
+        queryClient.invalidateQueries('all-training-materials');
         setState(prev => ({ ...prev, isEditModalOpen: false, selectedTeam: null }));
         resetForm();
       },
@@ -234,7 +258,13 @@ const TeamsPage: React.FC = () => {
     {
       onSuccess: () => {
         toast.success('Miembro removido exitosamente');
+        // Invalidar todas las queries relacionadas para refrescar completamente la vista
         queryClient.invalidateQueries('teams');
+        queryClient.invalidateQueries('users');
+        queryClient.invalidateQueries('user-training-assignments');
+        queryClient.invalidateQueries('all-technology-progress');
+        queryClient.invalidateQueries('all-material-progress');
+        queryClient.invalidateQueries('all-training-materials');
       },
       onError: (error: any) => {
         toast.error(error.response?.data?.detail || 'Error al remover miembro');
@@ -266,6 +296,13 @@ const TeamsPage: React.FC = () => {
     {
       onSuccess: () => {
         toast.success('Capacitación asignada exitosamente a todos los miembros del equipo');
+        // Invalidar todas las queries relacionadas para refrescar completamente la vista
+        queryClient.invalidateQueries('teams');
+        queryClient.invalidateQueries('users');
+        queryClient.invalidateQueries('user-training-assignments');
+        queryClient.invalidateQueries('all-technology-progress');
+        queryClient.invalidateQueries('all-material-progress');
+        queryClient.invalidateQueries('all-training-materials');
         setState(prev => ({ ...prev, isAssignTrainingModalOpen: false, selectedTeam: null }));
       },
       onError: (error: any) => {
