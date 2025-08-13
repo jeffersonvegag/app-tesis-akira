@@ -272,12 +272,61 @@ def get_technologies(db: Session = Depends(get_db)):
     """
     return db.query(models.Technology).all()
 
+@app.post("/api/v1/technologies", response_model=schemas.Technology, tags=["Technologies"])
+def create_technology(technology: schemas.TechnologyCreate, db: Session = Depends(get_db)):
+    """
+    Crear una nueva tecnología
+    """
+    # Verificar si ya existe una tecnología con el mismo nombre
+    existing_technology = db.query(models.Technology).filter(
+        models.Technology.technology_name == technology.technology_name
+    ).first()
+    
+    if existing_technology:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe una tecnología con el nombre '{technology.technology_name}'"
+        )
+    
+    db_technology = models.Technology(
+        technology_name=technology.technology_name
+    )
+    db.add(db_technology)
+    db.commit()
+    db.refresh(db_technology)
+    return db_technology
+
 @app.get("/api/v1/trainings", response_model=List[schemas.Training], tags=["Trainings"])
 def get_trainings(db: Session = Depends(get_db)):
     """
     Obtener todas las capacitaciones con sus tecnologías
     """
     return db.query(models.Training).options(joinedload(models.Training.training_technologies).joinedload(models.TrainingTechnology.technology)).all()
+
+@app.post("/api/v1/trainings", response_model=schemas.Training, tags=["Trainings"])
+def create_training(training: schemas.TrainingCreate, db: Session = Depends(get_db)):
+    """
+    Crear una nueva capacitación
+    """
+    # Verificar si ya existe una capacitación con el mismo nombre
+    existing_training = db.query(models.Training).filter(
+        models.Training.training_name == training.training_name
+    ).first()
+    
+    if existing_training:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe una capacitación con el nombre '{training.training_name}'"
+        )
+    
+    db_training = models.Training(
+        training_name=training.training_name,
+        training_description=training.training_description
+    )
+    db.add(db_training)
+    db.commit()
+    db.refresh(db_training)
+    return db_training
 
 @app.get("/api/v1/users", response_model=List[schemas.User], tags=["Users"])
 def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
