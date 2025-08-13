@@ -145,27 +145,9 @@ const SettingsPage: React.FC = () => {
   const tabs = [
     {
       id: 'catalogs',
-      name: 'Catalogos del Sistema',
+      name: 'Roles',
       icon: Database,
-      description: 'Gestiona roles, posiciones, tecnologias y modalidades',
-    },
-    {
-      id: 'system',
-      name: 'Configuracion del Sistema',
-      icon: Settings,
-      description: 'Configuraciones generales de la aplicacion',
-    },
-    {
-      id: 'security',
-      name: 'Seguridad',
-      icon: Lock,
-      description: 'Configuraciones de seguridad y permisos',
-    },
-    {
-      id: 'notifications',
-      name: 'Notificaciones',
-      icon: Bell,
-      description: 'Configurar alertas y notificaciones',
+      description: 'Gestiona roles del sistema',
     },
   ];
 
@@ -174,9 +156,9 @@ const SettingsPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Configuracion</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Roles</h1>
           <p className="text-gray-600 mt-1">
-            Administra la configuracion general del sistema y catalogos
+            Administra los roles del sistema
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -215,7 +197,7 @@ const SettingsPage: React.FC = () => {
       {/* Tab Content */}
       {state.activeTab === 'catalogs' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="max-w-2xl mx-auto">
             {/* Roles */}
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -289,240 +271,10 @@ const SettingsPage: React.FC = () => {
                 </div>
               )}
             </Card>
-
-            {/* Posiciones */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="w-5 h-5 text-green-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Posiciones de Trabajo</h3>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setState(prev => ({ ...prev, isAddingItem: true, editingItem: 'position' }))}
-                  className="flex items-center space-x-1"
-                >
-                  <Plus size={14} />
-                  <span>Agregar</span>
-                </Button>
-              </div>
-              
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {positions.map((position) => (
-                  <div key={position.user_position_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                    <div>
-                      <p className="font-medium text-gray-900">{position.position_name}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" className="p-2">
-                        <Edit size={14} />
-                      </Button>
-                      <Button variant="outline" size="sm" className="p-2 text-red-600">
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {state.isAddingItem && state.editingItem === 'position' && (
-                <div className="mt-4 p-4 border border-gray-200 rounded-md bg-green-50">
-                  <div className="space-y-3">
-                    <Input
-                      placeholder="Nombre de la posicion"
-                      value={state.newItemName}
-                      onChange={(e) => setState(prev => ({ ...prev, newItemName: e.target.value }))}
-                    />
-                    <div className="flex space-x-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddItem('position')}
-                        disabled={createPositionMutation.isLoading}
-                        className="flex items-center space-x-1"
-                      >
-                        <Save size={14} />
-                        <span>{createPositionMutation.isLoading ? 'Guardando...' : 'Guardar'}</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={resetForm}
-                        className="flex items-center space-x-1"
-                      >
-                        <X size={14} />
-                        <span>Cancelar</span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Tecnologias */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <Monitor className="w-5 h-5 text-purple-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Tecnologias</h3>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setState(prev => ({ ...prev, isAddingItem: true, editingItem: 'technology' }))}
-                  className="flex items-center space-x-1"
-                >
-                  <Plus size={14} />
-                  <span>Agregar</span>
-                </Button>
-              </div>
-              
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {technologies.map((tech) => (
-                  <div key={tech.technology_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                    <div>
-                      <p className="font-medium text-gray-900">{tech.technology_name}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" className="p-2">
-                        <Edit size={14} />
-                      </Button>
-                      <Button variant="outline" size="sm" className="p-2 text-red-600">
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {state.isAddingItem && state.editingItem === 'technology' && (
-                <div className="mt-4 p-4 border border-gray-200 rounded-md bg-purple-50">
-                  <div className="space-y-3">
-                    <Input
-                      placeholder="Nombre de la tecnologia"
-                      value={state.newItemName}
-                      onChange={(e) => setState(prev => ({ ...prev, newItemName: e.target.value }))}
-                    />
-                    <div className="flex space-x-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddItem('technology')}
-                        disabled={createTechnologyMutation.isLoading}
-                        className="flex items-center space-x-1"
-                      >
-                        <Save size={14} />
-                        <span>{createTechnologyMutation.isLoading ? 'Guardando...' : 'Guardar'}</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={resetForm}
-                        className="flex items-center space-x-1"
-                      >
-                        <X size={14} />
-                        <span>Cancelar</span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Modalidades */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <Globe className="w-5 h-5 text-orange-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Modalidades de Curso</h3>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setState(prev => ({ ...prev, isAddingItem: true, editingItem: 'modality' }))}
-                  className="flex items-center space-x-1"
-                >
-                  <Plus size={14} />
-                  <span>Agregar</span>
-                </Button>
-              </div>
-              
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {modalities.map((modality) => (
-                  <div key={modality.course_modality_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                    <div>
-                      <p className="font-medium text-gray-900">{modality.course_modality_name}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" className="p-2">
-                        <Edit size={14} />
-                      </Button>
-                      <Button variant="outline" size="sm" className="p-2 text-red-600">
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {state.isAddingItem && state.editingItem === 'modality' && (
-                <div className="mt-4 p-4 border border-gray-200 rounded-md bg-orange-50">
-                  <div className="space-y-3">
-                    <Input
-                      placeholder="Nombre de la modalidad"
-                      value={state.newItemName}
-                      onChange={(e) => setState(prev => ({ ...prev, newItemName: e.target.value }))}
-                    />
-                    <div className="flex space-x-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddItem('modality')}
-                        disabled={createModalityMutation.isLoading}
-                        className="flex items-center space-x-1"
-                      >
-                        <Save size={14} />
-                        <span>{createModalityMutation.isLoading ? 'Guardando...' : 'Guardar'}</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={resetForm}
-                        className="flex items-center space-x-1"
-                      >
-                        <X size={14} />
-                        <span>Cancelar</span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </Card>
           </div>
         </div>
       )}
 
-      {state.activeTab === 'system' && (
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Funcionalidad pendiente de implementar</h3>
-            <p className="text-gray-600">Esta seccion estara disponible en futuras versiones.</p>
-          </Card>
-        </div>
-      )}
-
-      {state.activeTab === 'security' && (
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Funcionalidad pendiente de implementar</h3>
-            <p className="text-gray-600">Esta seccion estara disponible en futuras versiones.</p>
-          </Card>
-        </div>
-      )}
-
-      {state.activeTab === 'notifications' && (
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Funcionalidad pendiente de implementar</h3>
-            <p className="text-gray-600">Esta seccion estara disponible en futuras versiones.</p>
-          </Card>
-        </div>
-      )}
 
       {/* System Status */}
       <Card className="p-6">

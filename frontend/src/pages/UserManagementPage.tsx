@@ -88,6 +88,13 @@ const UserManagementPage: React.FC = () => {
     user_role: '',
   });
 
+  const [editUserForm, setEditUserForm] = useState<UserFormData>({
+    user_username: '',
+    user_password: '',
+    person_id: '',
+    user_role: '',
+  });
+
   // Queries
   const { data: users = [], isLoading: loadingUsers, refetch: refetchUsers } = useQuery(
     'users',
@@ -98,6 +105,18 @@ const UserManagementPage: React.FC = () => {
   const { data: persons = [] } = useQuery('persons', () => personService.getPersons());
   const { data: roles = [] } = useQuery('roles', () => catalogService.getRoles());
   const { data: genders = [] } = useQuery('genders', () => catalogService.getGenders());
+
+  // Load selected user data into edit form when modal opens
+  useEffect(() => {
+    if (state.isEditUserModalOpen && state.selectedUser) {
+      setEditUserForm({
+        user_username: state.selectedUser.user_username,
+        user_password: '', // Don't pre-fill password for security
+        person_id: state.selectedUser.person_id.toString(),
+        user_role: state.selectedUser.user_role.toString(),
+      });
+    }
+  }, [state.isEditUserModalOpen, state.selectedUser]);
 
   // Mutations
   const createUserMutation = useMutation(userService.createUser, {
@@ -132,6 +151,7 @@ const UserManagementPage: React.FC = () => {
         toast.success('Usuario actualizado exitosamente');
         queryClient.invalidateQueries('users');
         setState(prev => ({ ...prev, isEditUserModalOpen: false, selectedUser: null }));
+        resetEditUserForm();
       },
       onError: (error: any) => {
         toast.error(error.response?.data?.detail || 'Error al actualizar usuario');
@@ -166,7 +186,42 @@ const UserManagementPage: React.FC = () => {
       user_password: '',
       person_id: '',
       user_role: '',
-      });
+    });
+  };
+
+  const resetEditUserForm = () => {
+    setEditUserForm({
+      user_username: '',
+      user_password: '',
+      person_id: '',
+      user_role: '',
+    });
+  };
+
+  const handleUpdateUser = () => {
+    if (!state.selectedUser) return;
+    
+    if (!editUserForm.user_username.trim()) {
+      toast.error('El nombre de usuario es requerido');
+      return;
+    }
+    
+    if (!editUserForm.user_role) {
+      toast.error('El rol es requerido');
+      return;
+    }
+
+    const updateData: UserCreateForm = {
+      user_username: editUserForm.user_username.trim(),
+      user_password: editUserForm.user_password || undefined, // Only update password if provided
+      person_id: parseInt(editUserForm.person_id),
+      user_role: parseInt(editUserForm.user_role),
+    };
+
+    updateUserMutation.mutate({
+      id: state.selectedUser.user_id,
+      data: updateData
+    });
   };
 
   // Handle form submissions
@@ -708,14 +763,129 @@ const UserManagementPage: React.FC = () => {
      )}
 
      {/* Edit User Modal */}
-     {state.isEditUserModalOpen && (
+     {state.isEditUserModalOpen && state.selectedUser && (
        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-         <div className="bg-white rounded-lg p-6 w-full max-w-md">
-           <h2 className="text-xl font-bold mb-4">Editar Usuario</h2>
-           <p className="text-gray-600 mb-4">Funcionalidad pendiente de implementar</p>
-           <Button onClick={() => setState(prev => ({ ...prev, isEditUserModalOpen: false, selectedUser: null }))}>
-             Cerrar
-           </Button>
+         <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+           <div className="flex justify-between items-center mb-6">
+             <h2 className="text-xl font-bold text-gray-900">Editar Usuario</h2>
+             <Button
+               variant="outline"
+               size="sm"
+               onClick={() => {
+                 setState(prev => ({ ...prev, isEditUserModalOpen: false, selectedUser: null }));
+                 resetEditUserForm();
+               }}
+               className="p-2"
+             >
+               <X size={16} />
+             </Button>
+           </div>
+
+           <div className="space-y-4">
+             {/* User Info Display */}
+             <div className="bg-gray-50 p-4 rounded-lg">
+               <h3 className="font-medium text-gray-900 mb-2">Información del Usuario</h3>
+               <div className="grid grid-cols-2 gap-4 text-sm">
+                 <div>
+                   <span className="text-gray-600">Nombre:</span>
+                   <span className="ml-2 font-medium">
+                     {state.selectedUser.person.person_first_name} {state.selectedUser.person.person_last_name}
+                   </span>
+                 </div>
+                 <div>
+                   <span className="text-gray-600">Email:</span>
+                   <span className="ml-2 font-medium">{state.selectedUser.person.person_email}</span>
+                 </div>
+               </div>
+             </div>
+
+             {/* Edit Form */}
+             <div className="grid grid-cols-1 gap-4">
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Nombre de Usuario *
+                 </label>
+                 <Input
+                   value={editUserForm.user_username}
+                   onChange={(e) => setEditUserForm(prev => ({ ...prev, user_username: e.target.value }))}
+                   placeholder="Nombre de usuario"
+                   className="w-full"
+                 />
+               </div>
+
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Nueva Contraseña (opcional)
+                 </label>
+                 <Input
+                   type="password"
+                   value={editUserForm.user_password}
+                   onChange={(e) => setEditUserForm(prev => ({ ...prev, user_password: e.target.value }))}
+                   placeholder="Dejar vacío para mantener la actual"
+                   className="w-full"
+                 />
+                 <p className="text-xs text-gray-500 mt-1">
+                   Solo llena este campo si quieres cambiar la contraseña
+                 </p>
+               </div>
+
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Rol *
+                 </label>
+                 <select
+                   value={editUserForm.user_role}
+                   onChange={(e) => setEditUserForm(prev => ({ ...prev, user_role: e.target.value }))}
+                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 >
+                   <option value="">Seleccionar rol</option>
+                   {roles.map(role => (
+                     <option key={role.role_id} value={role.role_id}>
+                       {role.role_name}
+                     </option>
+                   ))}
+                 </select>
+               </div>
+
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Persona Asociada
+                 </label>
+                 <select
+                   value={editUserForm.person_id}
+                   onChange={(e) => setEditUserForm(prev => ({ ...prev, person_id: e.target.value }))}
+                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 >
+                   <option value="">Seleccionar persona</option>
+                   {persons.map(person => (
+                     <option key={person.person_id} value={person.person_id}>
+                       {person.person_first_name} {person.person_last_name} - {person.person_email}
+                     </option>
+                   ))}
+                 </select>
+               </div>
+             </div>
+           </div>
+
+           <div className="flex justify-end space-x-3 mt-6">
+             <Button
+               variant="outline"
+               onClick={() => {
+                 setState(prev => ({ ...prev, isEditUserModalOpen: false, selectedUser: null }));
+                 resetEditUserForm();
+               }}
+             >
+               Cancelar
+             </Button>
+             <Button
+               onClick={handleUpdateUser}
+               disabled={updateUserMutation.isLoading}
+               className="flex items-center space-x-2"
+             >
+               <Save size={16} />
+               <span>{updateUserMutation.isLoading ? 'Actualizando...' : 'Actualizar Usuario'}</span>
+             </Button>
+           </div>
          </div>
        </div>
      )}
