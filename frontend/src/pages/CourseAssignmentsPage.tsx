@@ -6,11 +6,14 @@ import {
   UserTrainingAssignment,
   UserTrainingAssignmentCreateForm,
   User,
+  Technology,
+  TrainingCreateForm,
 } from '@/types';
 import {
   trainingService,
   userTrainingAssignmentService,
   userService,
+  catalogService,
 } from '@/services/api';
 import {
   Plus,
@@ -25,6 +28,8 @@ import {
   XCircle,
   PlayCircle,
   Clock,
+  Cpu,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -41,6 +46,8 @@ interface AssignmentsState {
   selectedTraining: Training | null;
   isAssignInstructorModalOpen: boolean;
   isAssignUsersModalOpen: boolean;
+  isCreateTechnologyModalOpen: boolean;
+  isCreateTrainingModalOpen: boolean;
   searchTerm: string;
   filterStatus: string;
 }
@@ -51,12 +58,20 @@ const CourseAssignmentsPage: React.FC = () => {
     selectedTraining: null,
     isAssignInstructorModalOpen: false,
     isAssignUsersModalOpen: false,
+    isCreateTechnologyModalOpen: false,
+    isCreateTrainingModalOpen: false,
     searchTerm: '',
     filterStatus: '',
   });
 
   const [selectedInstructor, setSelectedInstructor] = useState<number | undefined>();
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
+  const [technologyForm, setTechnologyForm] = useState({ technology_name: '' });
+  const [trainingForm, setTrainingForm] = useState<TrainingCreateForm & { technologies: number[] }>({
+    training_name: '',
+    training_description: '',
+    technologies: []
+  });
 
   // Queries
   const { data: trainings = [], isLoading: loadingTrainings } = useQuery(
@@ -70,6 +85,8 @@ const CourseAssignmentsPage: React.FC = () => {
     'user-training-assignments',
     () => userTrainingAssignmentService.getAssignments()
   );
+
+  const { data: technologies = [] } = useQuery('technologies', () => catalogService.getTechnologies());
 
   // Mutations
   const assignUsersMutation = useMutation(
@@ -100,6 +117,46 @@ const CourseAssignmentsPage: React.FC = () => {
       },
       onError: (error: any) => {
         toast.error(error.response?.data?.detail || 'Error al asignar instructor');
+      },
+    }
+  );
+
+  const createTechnologyMutation = useMutation(
+    (technologyData: { technology_name: string }) => catalogService.createTechnology(technologyData),
+    {
+      onSuccess: () => {
+        toast.success('Tecnología creada exitosamente');
+        queryClient.invalidateQueries('technologies');
+        setState(prev => ({ ...prev, isCreateTechnologyModalOpen: false }));
+        setTechnologyForm({ technology_name: '' });
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.detail || 'Error al crear tecnología');
+      },
+    }
+  );
+
+  const createTrainingMutation = useMutation(
+    async (trainingData: { training_name: string; training_description?: string; technologies: number[] }) => {
+      // Crear la capacitación primero
+      const training = await trainingService.createTraining({
+        training_name: trainingData.training_name,
+        training_description: trainingData.training_description
+      });
+      
+      // Luego asignar las tecnologías (esto requeriría un endpoint específico)
+      // Por ahora solo creamos la capacitación básica
+      return training;
+    },
+    {
+      onSuccess: () => {
+        toast.success('Capacitación creada exitosamente');
+        queryClient.invalidateQueries('trainings');
+        setState(prev => ({ ...prev, isCreateTrainingModalOpen: false }));
+        setTrainingForm({ training_name: '', training_description: '', technologies: [] });
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.detail || 'Error al crear capacitación');
       },
     }
   );
@@ -176,6 +233,22 @@ const CourseAssignmentsPage: React.FC = () => {
     }));
 
     assignUsersMutation.mutate(assignments);
+  };
+
+  const handleCreateTechnology = () => {
+    if (!technologyForm.technology_name.trim()) {
+      toast.error('El nombre de la tecnología es requerido');
+      return;
+    }
+    createTechnologyMutation.mutate(technologyForm);
+  };
+
+  const handleCreateTraining = () => {
+    if (!trainingForm.training_name.trim()) {
+      toast.error('El nombre de la capacitación es requerido');
+      return;
+    }
+    createTrainingMutation.mutate(trainingForm);
   };
 
   const stats = {
@@ -261,6 +334,24 @@ const CourseAssignmentsPage: React.FC = () => {
               <option value="with_users">Con usuarios</option>
               <option value="without_users">Sin usuarios</option>
             </select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={() => setState(prev => ({ ...prev, isCreateTechnologyModalOpen: true }))}
+              className="flex items-center space-x-2"
+              size="sm"
+            >
+              <Cpu size={16} />
+              <span>Nueva Tecnología</span>
+            </Button>
+            <Button
+              onClick={() => setState(prev => ({ ...prev, isCreateTrainingModalOpen: true }))}
+              className="flex items-center space-x-2"
+              size="sm"
+            >
+              <Plus size={16} />
+              <span>Nueva Capacitación</span>
+            </Button>
           </div>
         </div>
       </Card>
@@ -514,6 +605,172 @@ const CourseAssignmentsPage: React.FC = () => {
                   <span>{assignUsersMutation.isLoading ? 'Asignando...' : 'Asignar Usuarios'}</span>
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Technology Modal */}
+      {state.isCreateTechnologyModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Crear Nueva Tecnología</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setState(prev => ({ ...prev, isCreateTechnologyModalOpen: false }));
+                  setTechnologyForm({ technology_name: '' });
+                }}
+                className="p-2"
+              >
+                <X size={16} />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre de la Tecnología *
+                </label>
+                <Input
+                  value={technologyForm.technology_name}
+                  onChange={(e) => setTechnologyForm(prev => ({ ...prev, technology_name: e.target.value }))}
+                  placeholder="Ej: React, Python, AWS..."
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setState(prev => ({ ...prev, isCreateTechnologyModalOpen: false }));
+                  setTechnologyForm({ technology_name: '' });
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleCreateTechnology}
+                disabled={createTechnologyMutation.isLoading}
+                className="flex items-center space-x-2"
+              >
+                <Save size={16} />
+                <span>{createTechnologyMutation.isLoading ? 'Creando...' : 'Crear Tecnología'}</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Training Modal */}
+      {state.isCreateTrainingModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Crear Nueva Capacitación</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setState(prev => ({ ...prev, isCreateTrainingModalOpen: false }));
+                  setTrainingForm({ training_name: '', training_description: '', technologies: [] });
+                }}
+                className="p-2"
+              >
+                <X size={16} />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre de la Capacitación *
+                </label>
+                <Input
+                  value={trainingForm.training_name}
+                  onChange={(e) => setTrainingForm(prev => ({ ...prev, training_name: e.target.value }))}
+                  placeholder="Ej: Desarrollo Frontend con React"
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Descripción (Opcional)
+                </label>
+                <textarea
+                  value={trainingForm.training_description || ''}
+                  onChange={(e) => setTrainingForm(prev => ({ ...prev, training_description: e.target.value }))}
+                  placeholder="Describe el contenido y objetivos de la capacitación..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tecnologías Asociadas
+                </label>
+                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
+                  {technologies.length === 0 ? (
+                    <p className="text-sm text-gray-500">No hay tecnologías disponibles</p>
+                  ) : (
+                    technologies.map(technology => (
+                      <label
+                        key={technology.technology_id}
+                        className="flex items-center space-x-3 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={trainingForm.technologies.includes(technology.technology_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTrainingForm(prev => ({
+                                ...prev,
+                                technologies: [...prev.technologies, technology.technology_id]
+                              }));
+                            } else {
+                              setTrainingForm(prev => ({
+                                ...prev,
+                                technologies: prev.technologies.filter(id => id !== technology.technology_id)
+                              }));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm">{technology.technology_name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {trainingForm.technologies.length} tecnología(s) seleccionada(s)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setState(prev => ({ ...prev, isCreateTrainingModalOpen: false }));
+                  setTrainingForm({ training_name: '', training_description: '', technologies: [] });
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleCreateTraining}
+                disabled={createTrainingMutation.isLoading}
+                className="flex items-center space-x-2"
+              >
+                <Save size={16} />
+                <span>{createTrainingMutation.isLoading ? 'Creando...' : 'Crear Capacitación'}</span>
+              </Button>
             </div>
           </div>
         </div>
